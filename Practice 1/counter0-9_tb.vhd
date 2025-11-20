@@ -45,22 +45,18 @@ begin
     ------------------------------------------------------------------
     stim_proc: process
     begin
+        wait for 10 ns;
+        
         -- Initial state
+        rst_n <= '1';
+        wait for 10 ns;
+        
         rst_n <= '0';
-        en    <= '0';
-        wait for 30 ns;
+        wait for 10 ns;              
 
         -- Release reset
-        rst_n <= '1';
-        wait for 20 ns;
-
-        -- Start counting
         en <= '1';
-        wait for 500 ns;
-
-        -- Stop counting
-        en <= '0';
-        wait for 50 ns;
+        wait for 20 ns;
 
         wait;
     end process;
@@ -78,4 +74,3 @@ begin
     end process;
 
 end architecture;
-
