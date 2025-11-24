@@ -7,7 +7,7 @@ end entity;
 
 architecture tb of tb_dual_counter is
     signal clk      : std_logic := '0';
-    signal rst_n    : std_logic := '0';
+    signal rst_p    : std_logic := '0'; 
     signal en       : std_logic := '0';
     signal up_cnt   : std_logic_vector(3 downto 0);
     signal down_cnt : std_logic_vector(3 downto 0);
@@ -15,13 +15,11 @@ architecture tb of tb_dual_counter is
     constant clk_period : time := 10 ns;
 begin
 
-    ------------------------------------------------------------------
-    -- DUT
-    ------------------------------------------------------------------
+   
     uut: entity work.practice1
         port map (
             clk      => clk,
-            rst_n    => rst_n,
+            rst_p    => rst_p,   
             en       => en,
             up_cnt   => up_cnt,
             down_cnt => down_cnt
@@ -47,29 +45,31 @@ begin
     begin
         wait for 10 ns;
         
-        -- Initial state
-        rst_n <= '1';
-        wait for 10 ns;
+       
+        rst_p <= '1'; 
+        en    <= '0'; 
+        wait for 2 * clk_period; 
         
-        rst_n <= '0';
-        wait for 10 ns;              
+       
+        rst_p <= '0'; 
+        en    <= '1'; 
+        
+        wait for 10 * clk_period; 
+        
+       
+        en <= '0';
+        wait for 5 * clk_period; 
 
-        -- Release reset
-        en <= '1';
-        wait for 20 ns;
-
-        wait;
+        wait; 
     end process;
 
-    ------------------------------------------------------------------
-    -- Monitor
-    ------------------------------------------------------------------
+   
     monitor_proc: process(clk)
     begin
         if rising_edge(clk) then
             report "t=" & time'image(now) &
-                   " | up="   & integer'image(to_integer(unsigned(up_cnt))) &
-                   " | down=" & integer'image(to_integer(unsigned(down_cnt)));
+                     " | up="    & integer'image(to_integer(unsigned(up_cnt))) &
+                     " | down=" & integer'image(to_integer(unsigned(down_cnt)));
         end if;
     end process;
 
