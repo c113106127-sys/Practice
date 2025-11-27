@@ -21,7 +21,7 @@ architecture rtl of practice1 is
 begin
 
    
-    Up/Down Counter process(clk, rst_p) 
+    Up_Down Counter process(clk, rst_p) 
     begin
        
         if rst_p = '1' then 
