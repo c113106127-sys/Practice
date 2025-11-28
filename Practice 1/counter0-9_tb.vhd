@@ -18,11 +18,11 @@ begin
    
     uut: entity work.practice1
         port map (
-            clk      => clk,
-            rst_p    => rst_p,   
-            en       => en,
-            up_cnt   => up_cnt,
-            down_cnt => down_cnt
+            i_clk      => clk,
+            i_rstp    => rst_p,   
+            i_enable       => en,
+            o_ledup   => up_cnt,
+            o_leddown => down_cnt
         );
 
     ------------------------------------------------------------------
@@ -56,11 +56,7 @@ begin
         
         wait for 10 * clk_period; 
         
-       
-        en <= '0';
-        wait for 5 * clk_period; 
-
-        wait; 
+        wait;
     end process;
 
    
