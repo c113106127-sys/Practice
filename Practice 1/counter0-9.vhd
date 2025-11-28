@@ -1,47 +1,48 @@
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
+use ieee.std_logic_unsigned.all;
 
 entity practice1 is
     port (
-        clk      : in  std_logic;
-        rst_p    : in  std_logic; 
-        en       : in  std_logic;
-        up_cnt   : out std_logic_vector(3 downto 0);
-        down_cnt : out std_logic_vector(3 downto 0)
+        i_clk      : in  std_logic;
+        i_rstp    : in  std_logic; 
+        i_enable       : in  std_logic;
+        o_ledup   : out std_logic_vector(3 downto 0);
+        o_leddown : out std_logic_vector(3 downto 0)
     );
 end entity;
 
 architecture rtl of practice1 is
     
    
-    signal up_reg    : integer := 0;
-    signal down_reg  : integer := 9;
+    signal up_reg    : STD_LOGIC_VECTOR(3 downto 0) := "0000";
+    signal down_reg  : STD_LOGIC_VECTOR(3 downto 0) := "1001";
 
 begin
 
    
-    Up_Down Counter process(clk, rst_p) 
+    process(i_clk, i_rstp) 
     begin
        
-        if rst_p = '1' then 
-            up_reg   <= 0;
-            down_reg <= 9;
+        if i_rstp = '1' then 
+            up_reg   <= "0000";
+            down_reg <= "1001";
 
        
-        elsif rising_edge(clk) then
-            if en = '1' then
+        elsif rising_edge(i_clk) then
+            if i_enable = '1' then
 
                
-                if up_reg = 9 then
-                    up_reg <= 0;
+                if up_reg = "1001" then
+                    up_reg <= "0000";
                 else
                     up_reg <= up_reg + 1;
                 end if;
 
                
-                if down_reg = 0 then
-                    down_reg <= 9;
+                if down_reg = "0000" then
+                    down_reg <= "1001";
                 else
                     down_reg <= down_reg - 1;
                 end if;
@@ -51,7 +52,7 @@ begin
     end process;
 
    
-    LED_up   <= std_logic_vector(to_unsigned(up_reg, 4));
-    LED_down <= std_logic_vector(to_unsigned(down_reg, 4));
+    o_ledup   <= up_reg;
+    o_leddown <= down_reg;
 
 end architecture;
