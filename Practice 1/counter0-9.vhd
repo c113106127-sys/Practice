@@ -51,7 +51,7 @@ begin
     end process;
 
    
-    up_cnt   <= std_logic_vector(to_unsigned(up_reg, 4));
-    down_cnt <= std_logic_vector(to_unsigned(down_reg, 4));
+    LED_up   <= std_logic_vector(to_unsigned(up_reg, 4));
+    LED_down <= std_logic_vector(to_unsigned(down_reg, 4));
 
 end architecture;
