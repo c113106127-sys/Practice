@@ -6,8 +6,8 @@ entity twocounters is
     Port (
         i_clk         : in  STD_LOGIC;
         i_rstp        : in  STD_LOGIC;
-        i_direction1  : in  STD_LOGIC;  -- counter1 的方向 ('1' = up, '0' = down)
-        i_direction2  : in  STD_LOGIC;  -- counter2 的方向
+        i_direction1  : in  STD_LOGIC;  
+        i_direction2  : in  STD_LOGIC;  
         o_ledc1       : out STD_LOGIC_VECTOR (7 downto 0);
         o_ledc2       : out STD_LOGIC_VECTOR (7 downto 0)
     );
@@ -23,19 +23,18 @@ architecture Behavioral of twocounters is
 
 begin
 
-    -- Counter 1
-    process(i_clk, i_rstp)
+    count1: process(i_clk, i_rstp)
     begin
         if i_rstp = '1' then
             r_count1 <= c_min;
         elsif rising_edge(i_clk) then
-            if i_direction1 = '1' then  -- up
+            if i_direction1 = '1' then  
                 if r_count1 < c_max then
                     r_count1 <= r_count1 + 1;
                 else
                     r_count1 <= c_min;
                 end if;
-            else  -- down
+            else  
                 if r_count1 > c_min then
                     r_count1 <= r_count1 - 1;
                 else
@@ -45,19 +44,18 @@ begin
         end if;
     end process;
 
-    -- Counter 2
-    process(i_clk, i_rstp)
+    count2: process(i_clk, i_rstp)
     begin
         if i_rstp = '1' then
             r_count2 <= c_min;
         elsif rising_edge(i_clk) then
-            if i_direction2 = '1' then  -- up
+            if i_direction2 = '1' then  
                 if r_count2 < c_max then
                     r_count2 <= r_count2 + 1;
                 else
                     r_count2 <= c_min;
                 end if;
-            else  -- down
+            else  
                 if r_count2 > c_min then
                     r_count2 <= r_count2 - 1;
                 else
