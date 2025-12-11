@@ -9,13 +9,12 @@ architecture Behavioral of twocounters_tb is
     signal i_clk       : std_logic := '0';
     signal i_rstp      : std_logic := '0';
     signal i_direction1: std_logic := '1';
-    signal i_direction2: std_logic := '1';
+    signal i_direction2: std_logic := '0';
     signal o_ledc1     : std_logic_vector(7 downto 0);
     signal o_ledc2     : std_logic_vector(7 downto 0);
 
 begin
 
-    -- clock
     clk_proc: process
     begin
         i_clk <= '0';
@@ -24,14 +23,11 @@ begin
         wait for 5 ns;
     end process;
 
-    -- stimulus
-    stim: process
+    process
     begin
         i_rstp <= '1';
         wait for 20 ns;
         i_rstp <= '0';
-
-        -- counter1 up, counter2 up
         i_direction1 <= '1';
         i_direction2 <= '0';
         wait;
