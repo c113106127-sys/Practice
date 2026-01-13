@@ -8,15 +8,15 @@ architecture sim of tb_practice3 is
 
     signal clk    : std_logic := '0';
     signal rst    : std_logic := '0';
-    signal c1     : std_logic_vector(7 downto 0);
-    signal c2     : std_logic_vector(7 downto 0);
+    signal c1     : std_logic_vector(3 downto 0);
+    signal c2     : std_logic_vector(3 downto 0);
 
     component practice3
         Port (
             i_clk    : in STD_LOGIC;
             i_rst    : in STD_LOGIC;
-            o_count1 : out STD_LOGIC_VECTOR (7 downto 0);
-            o_count2 : out STD_LOGIC_VECTOR (7 downto 0)
+            o_count1 : out STD_LOGIC_VECTOR (3 downto 0);
+            o_count2 : out STD_LOGIC_VECTOR (3 downto 0)
         );
     end component;
 begin
@@ -36,7 +36,7 @@ begin
         wait for 20 ns;
 
         rst <= '1';
-        wait for 400 ns;
+        wait for 200 ns;
 
         wait;
     end process;
