@@ -9,5 +9,12 @@
 <img width="2000" height="416" alt="image" src="https://github.com/user-attachments/assets/89729a9d-76e4-416c-9eb1-fe1237662afd" />
 0-193ns: direction1為上數、direction2為下數; 上限 = 06、下限 = 02
 193--ns: direction1為下數、direction2為上數; 上限 = 08、下限 = 04
-<img width="1331" height="1125" alt="image" src="https://github.com/user-attachments/assets/30c4bda0-fb8a-4b2b-8806-c1a85ff63bd8" />
+<img width="633" height="1125" alt="image" src="https://github.com/user-attachments/assets/df885aa7-5a0a-4360-94da-6befae01442d" />
+4.00秒設定上下數
+5.00秒開始計數
+28.00秒resect, 改變count1上下數
+39.00秒resect, 改變count2上下數
+
+
+
 
