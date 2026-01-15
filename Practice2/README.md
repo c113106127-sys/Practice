@@ -1,3 +1,5 @@
+<img width="1454" height="831" alt="image" src="https://github.com/user-attachments/assets/6bdfcaa4-566d-436c-9370-f9db2fad7e75" />
+
 <img width="2000" height="461" alt="image" src="https://github.com/user-attachments/assets/cce644b4-4d67-432c-a008-3a140d510c3e" />
 
 <img width="1245" height="1000" alt="image" src="https://github.com/user-attachments/assets/2911d03f-845d-428c-bd62-6b810cee53cc" />
@@ -14,6 +16,7 @@ https://github.com/c113106127-sys/Practice/blob/main/Practice2/%E5%AA%92%E9%AB%9
 5.00秒開始計數
 28.00秒resect, 改變count1上下數
 39.00秒resect, 改變count2上下數
+
 
 
 
