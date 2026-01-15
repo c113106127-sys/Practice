@@ -9,11 +9,12 @@
 <img width="2000" height="416" alt="image" src="https://github.com/user-attachments/assets/89729a9d-76e4-416c-9eb1-fe1237662afd" />
 0-193ns: direction1為上數、direction2為下數; 上限 = 06、下限 = 02
 193--ns: direction1為下數、direction2為上數; 上限 = 08、下限 = 04
-(https://github.com/c113106127-sys/Practice/blob/main/Practice2/790139880.557110.mp4)
+https://github.com/c113106127-sys/Practice/blob/main/Practice2/%E5%AA%92%E9%AB%942.MOV
 4.00秒設定上下數
 5.00秒開始計數
 28.00秒resect, 改變count1上下數
 39.00秒resect, 改變count2上下數
+
 
 
 
