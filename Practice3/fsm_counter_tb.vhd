@@ -1,44 +1,68 @@
 library IEEE;
-use IEEE.std_logic_1164.all;
+use IEEE.STD_LOGIC_1164.ALL;
 
 entity tb_practice3 is
+-- Testbench 不需要 Port
 end tb_practice3;
 
-architecture sim of tb_practice3 is
+architecture Behavioral of tb_practice3 is
 
-    signal clk    : std_logic := '0';
-    signal rst    : std_logic := '0';
-    signal c1     : std_logic_vector(3 downto 0);
-    signal c2     : std_logic_vector(3 downto 0);
+    COMPONENT practice3
+    GENERIC(
+        DIV_MAX : integer
+    );
+    PORT(
+        i_clk : IN  std_logic;
+        i_rst : IN  std_logic;
+        o_count1 : OUT  std_logic_vector(3 downto 0);
+        o_count2 : OUT  std_logic_vector(3 downto 0)
+    );
+    END COMPONENT;
 
-    component practice3
-        Port (
-            i_clk    : in STD_LOGIC;
-            i_rst    : in STD_LOGIC;
-            o_count1 : out STD_LOGIC_VECTOR (3 downto 0);
-            o_count2 : out STD_LOGIC_VECTOR (3 downto 0)
-        );
-    end component;
+    signal i_clk : std_logic := '0';
+    signal i_rst : std_logic := '0';
+    signal o_count1 : std_logic_vector(3 downto 0);
+    signal o_count2 : std_logic_vector(3 downto 0);
+
+    constant clk_period : time := 10 ns;
+
 begin
-    UUT: practice3
-        port map(
-            i_clk    => clk,
-            i_rst    => rst,
-            o_count1 => c1,
-            o_count2 => c2
-        );
 
-    -- clock 10ns
-    clk <= not clk after 5 ns;
-    process
+    uut: practice3
+    GENERIC MAP (
+        DIV_MAX => 4 
+    )
+    PORT MAP (
+        i_clk => i_clk,
+        i_rst => i_rst,
+        o_count1 => o_count1,
+        o_count2 => o_count2
+    );
+
+ 
+    clk_process :process
     begin
-        rst <= '0';
-        wait for 20 ns;
+        i_clk <= '0';
+        wait for clk_period/2;
+        i_clk <= '1';
+        wait for clk_period/2;
+    end process;
 
-        rst <= '1';
-        wait for 200 ns;
+ 
+    stim_proc: process
+    begin		
 
+        i_rst <= '0';
+        wait for 100 ns;	
+
+        i_rst <= '1';
+
+
+        wait for 1000 ns; 
+        
+        assert false report "Simulation Finished" severity failure;
+        
         wait;
     end process;
 
-end sim;
+end Behavioral;
