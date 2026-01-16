@@ -12,12 +12,16 @@
 <img width="1534" height="321" alt="image" src="https://github.com/user-attachments/assets/20dbff4a-6f85-4a98-9e5a-ad0fdd1623dd" />
 
 
-rst 100ns後為1開始運作，當state = s0，count1 0-9計數;當count1數到9，state = s1，count2 9-0計數
+rst 100ns後為1開始運作，
+當state = s0，count1 0-9計數;
+當count1數到9，state = s1，
+count2 9-0計數
 
 https://github.com/c113106127-sys/Practice/blob/main/Practice3/790139880.557110.mp4
 
 2.00秒rst開，count1開始計數0-9
 6.30秒count2開始計數9-0
+
 
 
 
