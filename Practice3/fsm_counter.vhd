@@ -27,7 +27,7 @@ architecture Behavioral of practice3 is
 
 begin
 
-    -- ========= 1. 除頻器 (維持原樣) =========
+    -- ========= 除頻器  =========
     CLK_DIVIDER_PROC: process(i_clk, i_rst)
     begin
         if i_rst = '0' then
@@ -67,7 +67,7 @@ begin
         end if;
     end process;
 
-    -- ========= 3. Counter 1 行為 =========
+    -- ========= Counter 1  =========
     counter1_proc: process(i_clk, i_rst)
     begin
         if i_rst = '0' then
@@ -89,7 +89,7 @@ begin
         end if;
     end process;
 
-    -- ========= 4. Counter 2 行為=========
+    -- ========= Counter 2=========
     counter2_proc: process(i_clk, i_rst)
     begin
         if i_rst = '0' then
@@ -112,3 +112,4 @@ begin
     end process;
 
 end Behavioral;
+
