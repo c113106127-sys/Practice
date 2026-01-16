@@ -3,8 +3,12 @@
 <img width="3956" height="1000" alt="image" src="https://github.com/user-attachments/assets/3b09d83e-3ef1-4bd3-9756-ee3a44186012" />
 <img width="1270" height="1000" alt="image" src="https://github.com/user-attachments/assets/ed5a7c66-e4ac-4fcc-8fa7-eacdba9fba86" />
 <img width="1338" height="1000" alt="image" src="https://github.com/user-attachments/assets/e6a71378-d72e-4b34-9ab8-a9c7eab526c8" />
-<img width="1345" height="764" alt="image" src="https://github.com/user-attachments/assets/8e3e931f-500e-4267-96af-4abe1d6dc20d" />
-<img width="2724" height="999" alt="image" src="https://github.com/user-attachments/assets/7b96f19d-7ed8-41e8-b398-444e442fb6bb" />
+<img width="2906" height="1000" alt="image" src="https://github.com/user-attachments/assets/66c7fd22-93a8-4af8-8e04-8b58af536782" />
+
+<img width="960" height="272" alt="image" src="https://github.com/user-attachments/assets/b787ac65-568f-42f2-8a4e-2464b040a99c" />
+
+<img width="2391" height="1000" alt="image" src="https://github.com/user-attachments/assets/7186c50f-4eab-47d6-bd52-8da33e708aa4" />
+
 <img width="1534" height="321" alt="image" src="https://github.com/user-attachments/assets/20dbff4a-6f85-4a98-9e5a-ad0fdd1623dd" />
 
 
@@ -14,6 +18,7 @@ https://github.com/c113106127-sys/Practice/blob/main/Practice3/790139880.557110.
 
 2.00秒rst開，count1開始計數0-9
 6.30秒count2開始計數9-0
+
 
 
 
