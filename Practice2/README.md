@@ -8,9 +8,7 @@
 
 <img width="2000" height="897" alt="image" src="https://github.com/user-attachments/assets/b3809c03-a804-4ba5-a454-ae803b23ba0c" />
 
-<img width="1548" height="581" alt="image" src="https://github.com/user-attachments/assets/cc8edf1c-8887-48d1-b4a6-a47794fa96b2" />
-0-193ns: direction1為上數、direction2為下數; 上限 = 06、下限 = 02
-193ns: direction1為下數、direction2為上數; 上限 = 08、下限 = 04
+<img width="1582" height="601" alt="image" src="https://github.com/user-attachments/assets/d01c6f62-1222-4d46-83a1-082f23921b5b" />
 
 https://github.com/c113106127-sys/Practice/blob/main/Practice2/%E5%AA%92%E9%AB%942.MOV
 
@@ -19,6 +17,7 @@ https://github.com/c113106127-sys/Practice/blob/main/Practice2/%E5%AA%92%E9%AB%9
 5.00秒開始計數
 28.00秒resect, 改變count1上下數
 39.00秒resect, 改變count2上下數
+
 
 
 
