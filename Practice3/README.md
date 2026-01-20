@@ -5,7 +5,7 @@
 <img width="1338" height="1000" alt="image" src="https://github.com/user-attachments/assets/e6a71378-d72e-4b34-9ab8-a9c7eab526c8" />
 <img width="2906" height="1000" alt="image" src="https://github.com/user-attachments/assets/66c7fd22-93a8-4af8-8e04-8b58af536782" />
 
-<img width="960" height="272" alt="image" src="https://github.com/user-attachments/assets/b787ac65-568f-42f2-8a4e-2464b040a99c" />
+<img width="1141" height="328" alt="image" src="https://github.com/user-attachments/assets/b1d5a84e-226b-4e87-9469-fbe6b5605a95" />
 
 <img width="1810" height="906" alt="image" src="https://github.com/user-attachments/assets/93a88443-9665-4289-8a65-86a3acce039b" />
 
@@ -20,6 +20,7 @@ https://github.com/c113106127-sys/Practice/blob/main/Practice3/790139880.557110.
 
 2.00秒rst開，count1開始計數0-9
 6.30秒count2開始計數9-0
+
 
 
 
