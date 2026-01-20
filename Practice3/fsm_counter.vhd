@@ -17,8 +17,8 @@ end practice3;
 
 architecture Behavioral of practice3 is
 
-    signal div_cnt : std_logic_vector(25 downto 0); 
-    signal clk_en  : std_logic;
+    signal div_reg : std_logic_vector(25 downto 0); 
+    signal clk_en : std_logic;
 
     signal count1  : STD_LOGIC_VECTOR (3 downto 0);
     signal count2  : STD_LOGIC_VECTOR (3 downto 0);
@@ -27,89 +27,77 @@ architecture Behavioral of practice3 is
 
 begin
 
-    -- ========= 除頻器  =========
-    CLK_DIVIDER_PROC: process(i_clk, i_rst)
+    -- ========= 除頻器=========
+    process(clk_en, i_rst)
     begin
         if i_rst = '0' then
-            div_cnt <= (others => '0');
-            clk_en  <= '0';
+            div_reg <= (others => '0');
         elsif rising_edge(i_clk) then
-            if div_cnt = std_logic_vector(to_unsigned(DIV_MAX, 26)) then
-                div_cnt <= (others => '0');
-                clk_en  <= '1'; 
-            else
-                div_cnt <= div_cnt + 1; 
-                clk_en  <= '0'; 
-            end if;
+            div_reg <= div_reg + 1;
         end if;
     end process;
+    clk_en <= div_reg(25);
 
     o_count1 <= count1;
     o_count2 <= count2;
 
+    -- ========= FSM  =========
     FSM: process(i_clk, i_rst)
     begin
         if i_rst = '0' then
             state <= S0;
         elsif rising_edge(i_clk) then
-            if clk_en = '1' then 
-                case state is
-                    when S0 =>
-                        if count1 = "1001" then
-                            state <= S1;
-                        end if;
-                    when S1 =>
-                        if count2 = "0001" then 
-                            state <= S0;
-                        end if;
-                end case;
-            end if;
+            case state is
+                when S0 =>
+                    if count1 = "1001" then
+                        state <= S1;
+                    end if;
+                when S1 =>
+                    if count2 = "0001" then 
+                        state <= S0;
+                    end if;
+            end case;
         end if;
     end process;
 
     -- ========= Counter 1  =========
-    counter1_proc: process(i_clk, i_rst)
+    counter1_proc: process(clk_en, i_rst)
     begin
         if i_rst = '0' then
             count1 <= "0000";
-        elsif rising_edge(i_clk) then
-            if clk_en = '1' then 
-                if (state = S1 and count2 = "0001") then
-                    count1 <= "0000"; 
-                elsif state = S0 then
-                    if count1 = "1001" then
-                        count1 <= "0000";
-                    else
-                        count1 <= count1 + 1;
-                    end if;
-                else
+        elsif rising_edge(clk_en) then
+            if (state = S1 and count2 = "0001") then
+                count1 <= "0000"; 
+            elsif state = S0 then
+                if count1 = "1001" then
                     count1 <= "0000";
+                else
+                    count1 <= count1 + 1;
                 end if;
+            else
+                count1 <= "0000";
             end if;
         end if;
     end process;
 
-    -- ========= Counter 2=========
-    counter2_proc: process(i_clk, i_rst)
+    -- =========  Counter 2  =========
+    counter2_proc: process(clk_en, i_rst)
     begin
         if i_rst = '0' then
             count2 <= "0000";
-        elsif rising_edge(i_clk) then
-            if clk_en = '1' then 
-                if (state = S0 and count1 = "1001") then
-                    count2 <= "1001"; 
-                elsif state = S1 then
-                    if count2 = "0001" then
-                        count2 <= "0000";
-                    else
-                        count2 <= count2 - 1;
-                    end if;
-                else
+        elsif rising_edge(clk_en) then
+            if (state = S0 and count1 = "1001") then
+                count2 <= "1001"; 
+            elsif state = S1 then
+                if count2 = "0001" then
                     count2 <= "0000";
+                else
+                    count2 <= count2 - 1;
                 end if;
+            else
+                count2 <= "0000";
             end if;
         end if;
     end process;
 
 end Behavioral;
-
