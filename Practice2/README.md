@@ -8,7 +8,7 @@
 
 <img width="1147" height="336" alt="image" src="https://github.com/user-attachments/assets/245f4eec-0fe7-42c6-85c9-f872477b3cb5" />
 
-<img width="2000" height="847" alt="image" src="https://github.com/user-attachments/assets/59eaccde-92de-44f9-bac3-1109bf666780" />
+<img width="2276" height="1000" alt="image" src="https://github.com/user-attachments/assets/e3ddca93-12b9-4842-81db-ef7e4f642a0c" />
 
 <img width="1582" height="601" alt="image" src="https://github.com/user-attachments/assets/d01c6f62-1222-4d46-83a1-082f23921b5b" />
 
@@ -19,6 +19,7 @@ https://github.com/c113106127-sys/Practice/blob/main/Practice2/%E5%AA%92%E9%AB%9
 5.00秒開始計數
 28.00秒resect, 改變count1上下數
 39.00秒resect, 改變count2上下數
+
 
 
 
