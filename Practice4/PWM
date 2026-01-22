@@ -1,0 +1,120 @@
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.std_logic_unsigned.all; 
+
+entity practice4 is
+    port (
+        i_clk    : in  std_logic;
+        i_rst    : in  std_logic;
+        o_led    : out std_logic;
+        o_count1 : out std_logic_vector(3 downto 0);
+        o_count2 : out std_logic_vector(3 downto 0)
+    );
+end practice4;
+
+architecture Behavioral of practice4 is
+
+    signal div_reg       : std_logic_vector(25 downto 0) := (others => '0');
+    signal slow_clk_last : std_logic := '0';
+    signal clk_en        : std_logic := '0';
+
+    type FSM_state is (S0, S1);
+    signal state : FSM_state := S0;
+
+    signal count1 : std_logic_vector(3 downto 0) := (others => '0');
+    signal count2 : std_logic_vector(3 downto 0) := (others => '0');
+
+    signal pwm_cnt : std_logic_vector(3 downto 0) := (others => '0');
+
+begin
+
+    ------------------------------------------------------------------
+    -- 1. DIV Process 
+    ------------------------------------------------------------------
+    DIV: process(i_clk, i_rst)
+        constant MAX_COUNT : integer := 20; 
+    begin
+        if i_rst = '0' then
+            div_reg <= (others => '0');
+            clk_en  <= '0';
+        elsif rising_edge(i_clk) then
+
+            if div_reg = MAX_COUNT then
+                div_reg <= (others => '0'); 
+                clk_en  <= '1'; 
+            else
+                div_reg <= div_reg + 1;    
+                clk_en  <= '0';  
+            end if;
+            
+        end if;
+    end process;
+
+    ------------------------------------------------------------------
+    -- 2. FSM Process 
+    ------------------------------------------------------------------
+    FSM: process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            state    <= S0;
+            count1 <= (others => '0');
+            count2 <= (others => '0');
+        elsif rising_edge(i_clk) then
+            if clk_en = '1' then
+                case state is
+                    when S0 => -- 變亮階段
+                        count2 <= (others => '0');
+                        
+                        if count1 = "1001" then 
+                            state    <= S1;
+                            count1 <= (others => '0');
+                            count2 <= "1001"; 
+                        else
+                            count1 <= count1 + 1;
+                        end if;
+
+                    when S1 => -- 變暗階段
+                        count1 <= (others => '0');
+                        
+                        if count2 = 1 then
+                            state    <= S0;
+                            count2 <= (others => '0');
+                        else
+                            count2 <= count2 - 1;
+                        end if;
+                end case;
+            end if;
+        end if;
+    end process;
+
+    ------------------------------------------------------------------
+    -- 3. PWM Process 
+    ------------------------------------------------------------------
+    PWM: process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            pwm_cnt <= (others => '0');
+            o_led   <= '0';
+        elsif rising_edge(i_clk) then
+            pwm_cnt <= pwm_cnt + 1;
+
+            if state = S0 then
+                if pwm_cnt < count1 then
+                    o_led <= '1';
+                else
+                    o_led <= '0';
+                end if;
+            else -- S1
+                if pwm_cnt < count2 then
+                    o_led <= '1';
+                else
+                    o_led <= '0';
+                end if;
+            end if;
+        end if;
+    end process;
+
+    o_count1 <= count1;
+    o_count2 <= count2;
+
+end Behavioral;
