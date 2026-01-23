@@ -53,39 +53,74 @@ begin
     ------------------------------------------------------------------
     -- 2. FSM Process 
     ------------------------------------------------------------------
-    FSM: process(i_clk, i_rst)
-    begin
-        if i_rst = '0' then
-            state    <= S0;
-            count1 <= (others => '0');
-            count2 <= (others => '0');
-        elsif rising_edge(i_clk) then
-            if clk_en = '1' then
-                case state is
-                    when S0 => -- 變亮階段
-                        count2 <= (others => '0');
-                        
-                        if count1 = "1001" then 
-                            state    <= S1;
-                            count1 <= (others => '0');
-                            count2 <= "1001"; 
-                        else
-                            count1 <= count1 + 1;
-                        end if;
+   FSM: process(i_clk, i_rst)
+begin
+    if i_rst = '0' then
+        state <= S0;
 
-                    when S1 => -- 變暗階段
-                        count1 <= (others => '0');
-                        
-                        if count2 = 1 then
-                            state    <= S0;
-                            count2 <= (others => '0');
-                        else
-                            count2 <= count2 - 1;
-                        end if;
-                end case;
+    elsif rising_edge(i_clk) then
+        if clk_en = '1' then
+            case state is
+                when S0 =>
+                    if count1 = "1001" then
+                        state <= S1;
+                    end if;
+
+                when S1 =>
+                    if count2 = "0001" then
+                        state <= S0;
+                    end if;
+            end case;
+        end if;
+    end if;
+end process;
+------------------------------------------------------------------
+    -- 3. count1 Process 
+    ------------------------------------------------------------------
+counter1: process(i_clk, i_rst)
+begin
+    if i_rst = '0' then
+        count1 <= "0000";
+
+    elsif rising_edge(i_clk) then
+        if clk_en = '1' then
+            if state = S0 then
+                if count1 = "1001" then
+                    count1 <= "0000";
+                else
+                    count1 <= count1 + 1;
+                end if;
+            else
+                count1 <= "0000";
             end if;
         end if;
-    end process;
+    end if;
+end process;
+------------------------------------------------------------------
+    -- 3. count2 Process 
+    ------------------------------------------------------------------
+counter2: process(i_clk, i_rst)
+begin
+    if i_rst = '0' then
+        count2 <= "0000";
+
+    elsif rising_edge(i_clk) then
+        if clk_en = '1' then
+            if (state = S0 and count1 = "1001") then
+                count2 <= "1001";
+            elsif state = S1 then
+                if count2 = "0001" then
+                    count2 <= "0000";
+                else
+                    count2 <= count2 - 1;
+                end if;
+
+            else
+                count2 <= "0000";
+            end if;
+        end if;
+    end if;
+end process;
 
     ------------------------------------------------------------------
     -- 3. PWM Process 
