@@ -1,0 +1,19 @@
+##########################################################
+# Clock (100 MHz) - Pin Y9
+##########################################################
+set_property PACKAGE_PIN Y9 [get_ports i_clk]
+set_property IOSTANDARD LVCMOS33 [get_ports i_clk]
+create_clock -period 10.000 -name sys_clk [get_ports i_clk]
+
+##########################################################
+# Reset (SW1) - Pin G22
+##########################################################
+set_property PACKAGE_PIN G22 [get_ports i_rst]
+set_property IOSTANDARD LVCMOS33 [get_ports i_rst]
+
+##########################################################
+# LEDs (Only LD0)
+##########################################################
+# 將 o_led 綁定到板子上的第一顆 LED (LD0 / Pin T22)
+set_property PACKAGE_PIN T22 [get_ports o_led]
+set_property IOSTANDARD LVCMOS33 [get_ports o_led]
