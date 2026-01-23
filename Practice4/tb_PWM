@@ -1,0 +1,76 @@
+library IEEE;
+use IEEE.std_logic_1164.all;
+use IEEE.std_logic_unsigned.all; -- 配合主程式使用這個庫
+
+entity tb_practice4 is
+    -- Testbench 不需要 Port
+end tb_practice4;
+
+architecture behavior of tb_practice4 is
+
+    -- 1. 宣告元件 (Component Declaration)
+    component practice4
+        port(
+            i_clk    : in  std_logic;
+            i_rst    : in  std_logic;
+            o_led    : out std_logic;
+            o_count1 : out std_logic_vector(3 downto 0);
+            o_count2 : out std_logic_vector(3 downto 0)
+        );
+    end component;
+
+    -- 2. 宣告訊號 (Signals)
+    signal i_clk    : std_logic := '0';
+    signal i_rst    : std_logic := '0';
+    signal o_led    : std_logic;
+    signal o_count1 : std_logic_vector(3 downto 0);
+    signal o_count2 : std_logic_vector(3 downto 0);
+
+    -- 設定時脈週期 (50MHz = 20ns)
+    constant clk_period : time := 20 ns;
+
+begin
+
+    -- 3. 實體化 (Instantiate the Unit Under Test)
+    uut: practice4
+        port map (
+            i_clk    => i_clk,
+            i_rst    => i_rst,
+            o_led    => o_led,
+            o_count1 => o_count1,
+            o_count2 => o_count2
+        );
+
+    -- 4. 時脈產生程序 (Clock Process)
+    clk_process : process
+    begin
+        i_clk <= '0';
+        wait for clk_period/2;
+        i_clk <= '1';
+        wait for clk_period/2;
+    end process;
+
+    -- 5. 測試激勵程序 (Stimulus Process)
+    stim_proc: process
+    begin
+        -- (A) 系統重置
+        -- 您的設計是低電位重置 (if i_rst = '0')
+        i_rst <= '0';
+        wait for 100 ns;
+
+        -- (B) 釋放重置，開始運作
+        i_rst <= '1';
+
+        -- (C) 觀察波形
+        -- 假設您的 BIT_SEL 設為 3 (每 16 個 clock cycle 觸發一次)
+        -- 呼吸燈完整週期約需 20 個 steps (亮0~9 + 暗9~0)
+        -- 總需時間約: 20 steps * 16 clocks * 20ns = 6400ns
+        -- 我們跑個 10 us (10,000 ns) 應該能看到完整的呼吸循環
+        wait for 10000 ns; 
+
+        -- (D) 結束模擬
+        assert false report "Simulation Finished" severity failure;
+        wait;
+    end process;
+
+end behavior;
