@@ -4,19 +4,17 @@ use IEEE.std_logic_unsigned.all;
 
 entity practice4 is
     port (
-        i_clk    : in  std_logic;
-        i_rst    : in  std_logic;
-        o_led    : out std_logic;
-        o_count1 : out std_logic_vector(3 downto 0);
-        o_count2 : out std_logic_vector(3 downto 0)
+        i_clk : in  std_logic;
+        i_rst : in  std_logic;
+        o_led : out std_logic  
     );
 end practice4;
 
 architecture Behavioral of practice4 is
 
-    signal div_reg       : std_logic_vector(25 downto 0) := (others => '0');
-    signal slow_clk_last : std_logic := '0';
-    signal clk_en        : std_logic := '0';
+    -- 這些訊號必須保留，作為內部邏輯運算使用
+    signal div_reg : std_logic_vector(25 downto 0) := (others => '0');
+    signal clk_en  : std_logic := '0';
 
     type FSM_state is (S0, S1);
     signal state : FSM_state := S0;
@@ -29,101 +27,97 @@ architecture Behavioral of practice4 is
 begin
 
     ------------------------------------------------------------------
-    -- 1. DIV Process 
+    -- 1. DIV Process (記得改大 MAX_COUNT 以符合肉眼觀察)
     ------------------------------------------------------------------
     DIV: process(i_clk, i_rst)
-        constant MAX_COUNT : integer := 20; 
+        -- 如果是 100MHz clock，建議設為 100000 左右，呼吸速度才適中
+        constant MAX_COUNT : integer := 5000000; 
     begin
         if i_rst = '0' then
             div_reg <= (others => '0');
             clk_en  <= '0';
         elsif rising_edge(i_clk) then
-
             if div_reg = MAX_COUNT then
                 div_reg <= (others => '0'); 
                 clk_en  <= '1'; 
             else
-                div_reg <= div_reg + 1;    
-                clk_en  <= '0';  
+                div_reg <= div_reg + 1;     
+                clk_en  <= '0';   
             end if;
-            
         end if;
     end process;
 
     ------------------------------------------------------------------
     -- 2. FSM Process 
     ------------------------------------------------------------------
-   FSM: process(i_clk, i_rst)
-begin
-    if i_rst = '0' then
-        state <= S0;
+    FSM: process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            state <= S0;
+        elsif rising_edge(i_clk) then
+            if clk_en = '1' then
+                case state is
+                    when S0 =>
+                        if count1 = "1001" then 
+                            state <= S1;
+                        end if;
+                    when S1 =>
+                        if count2 = "0001" then
+                            state <= S0;
+                        end if;
+                end case;
+            end if;
+        end if;
+    end process;
 
-    elsif rising_edge(i_clk) then
-        if clk_en = '1' then
-            case state is
-                when S0 =>
+    ------------------------------------------------------------------
+    -- 3. Counter 1 Process 
+    ------------------------------------------------------------------
+    counter1: process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            count1 <= "0000";
+        elsif rising_edge(i_clk) then
+            if clk_en = '1' then
+                if state = S0 then
                     if count1 = "1001" then
-                        state <= S1;
+                        count1 <= "0000";
+                    else
+                        count1 <= count1 + 1;
                     end if;
-
-                when S1 =>
-                    if count2 = "0001" then
-                        state <= S0;
-                    end if;
-            end case;
-        end if;
-    end if;
-end process;
-------------------------------------------------------------------
-    -- 3. count1 Process 
-    ------------------------------------------------------------------
-counter1: process(i_clk, i_rst)
-begin
-    if i_rst = '0' then
-        count1 <= "0000";
-
-    elsif rising_edge(i_clk) then
-        if clk_en = '1' then
-            if state = S0 then
-                if count1 = "1001" then
+                else
                     count1 <= "0000";
-                else
-                    count1 <= count1 + 1;
                 end if;
-            else
-                count1 <= "0000";
             end if;
         end if;
-    end if;
-end process;
-------------------------------------------------------------------
-    -- 3. count2 Process 
-    ------------------------------------------------------------------
-counter2: process(i_clk, i_rst)
-begin
-    if i_rst = '0' then
-        count2 <= "0000";
+    end process;
 
-    elsif rising_edge(i_clk) then
-        if clk_en = '1' then
-            if (state = S0 and count1 = "1001") then
-                count2 <= "1001";
-            elsif state = S1 then
-                if count2 = "0001" then
+    ------------------------------------------------------------------
+    -- 4. Counter 2 Process 
+    ------------------------------------------------------------------
+    counter2: process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            count2 <= "0000";
+        elsif rising_edge(i_clk) then
+            if clk_en = '1' then
+                if (state = S0 and count1 = "1001") then
+                    count2 <= "1001"; 
+                elsif state = S1 then
+                    if count2 = "0001" then
+                        count2 <= "0000";
+                    else
+                        count2 <= count2 - 1;
+                    end if;
+                else
                     count2 <= "0000";
-                else
-                    count2 <= count2 - 1;
                 end if;
-
-            else
-                count2 <= "0000";
             end if;
         end if;
-    end if;
-end process;
+    end process;
 
     ------------------------------------------------------------------
-    -- 3. PWM Process 
+    -- 5. PWM Process 
     ------------------------------------------------------------------
     PWM: process(i_clk, i_rst)
     begin
@@ -148,8 +142,5 @@ end process;
             end if;
         end if;
     end process;
-
-    o_count1 <= count1;
-    o_count2 <= count2;
 
 end Behavioral;
