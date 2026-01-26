@@ -6,5 +6,7 @@
 <img width="1130" height="326" alt="image" src="https://github.com/user-attachments/assets/3602d7fc-27c8-440a-aae9-82857127d644" />
 <img width="1439" height="1000" alt="image" src="https://github.com/user-attachments/assets/5f9b04e2-1051-41ea-afa4-69add26bdda2" />
 <img width="1540" height="346" alt="image" src="https://github.com/user-attachments/assets/fb62cc51-d289-4345-bd08-4146cc130b4a" />
+<img width="995" height="112" alt="image" src="https://github.com/user-attachments/assets/fa98e699-4fb3-48d7-b2e4-ba96f3e40c1c" />
 
 https://github.com/c113106127-sys/Practice/blob/main/Practice4/%E7%AC%AC%E5%9B%9B%E9%A1%8C.mp4
+
