@@ -1,6 +1,6 @@
 library IEEE;
 use IEEE.std_logic_1164.all;
-use IEEE.std_logic_unsigned.all; 
+use IEEE.std_logic_unsigned.all;
 
 entity practice4 is
     port (
@@ -12,40 +12,31 @@ end practice4;
 
 architecture Behavioral of practice4 is
 
-    -- 這些訊號必須保留，作為內部邏輯運算使用
-    signal div_reg : std_logic_vector(25 downto 0) := (others => '0');
+    signal div_reg : std_logic_vector(40 downto 0) := (others => '0');
     signal clk_en  : std_logic := '0';
 
     type FSM_state is (S0, S1);
     signal state : FSM_state := S0;
-
-    signal count1 : std_logic_vector(3 downto 0) := (others => '0');
-    signal count2 : std_logic_vector(3 downto 0) := (others => '0');
-
-    signal pwm_cnt : std_logic_vector(3 downto 0) := (others => '0');
+    
+    signal count1  : std_logic_vector(7 downto 0) := (others => '0');
+    signal count2  : std_logic_vector(7 downto 0) := (others => '0');
+    signal pwm_cnt : std_logic_vector(7 downto 0) := (others => '0');
 
 begin
 
     ------------------------------------------------------------------
-    -- 1. DIV Process (記得改大 MAX_COUNT 以符合肉眼觀察)
+    -- 1. DIV Process 
     ------------------------------------------------------------------
-    DIV: process(i_clk, i_rst)
-        -- 如果是 100MHz clock，建議設為 100000 左右，呼吸速度才適中
-        constant MAX_COUNT : integer := 5000000; 
+    process(clk_en, i_rst)
     begin
         if i_rst = '0' then
             div_reg <= (others => '0');
-            clk_en  <= '0';
         elsif rising_edge(i_clk) then
-            if div_reg = MAX_COUNT then
-                div_reg <= (others => '0'); 
-                clk_en  <= '1'; 
-            else
-                div_reg <= div_reg + 1;     
-                clk_en  <= '0';   
-            end if;
+            div_reg <= div_reg + 1;
         end if;
     end process;
+  
+ clk_en <= '1' when div_reg(18 downto 0) = 0 else '0';
 
     ------------------------------------------------------------------
     -- 2. FSM Process 
@@ -58,13 +49,18 @@ begin
             if clk_en = '1' then
                 case state is
                     when S0 =>
-                        if count1 = "1001" then 
+                        -- 數到 255 (全1) 切換狀態
+                        if count1 = "11111111" then 
                             state <= S1;
                         end if;
+                        
                     when S1 =>
-                        if count2 = "0001" then
+                        -- 數到 1 切換狀態
+                        if count2 = "00000001" then
                             state <= S0;
                         end if;
+                    when others =>
+                        state <= S0;                      
                 end case;
             end if;
         end if;
@@ -73,20 +69,20 @@ begin
     ------------------------------------------------------------------
     -- 3. Counter 1 Process 
     ------------------------------------------------------------------
-    counter1: process(i_clk, i_rst)
+    counter1: process(clk_en, i_rst)
     begin
         if i_rst = '0' then
-            count1 <= "0000";
-        elsif rising_edge(i_clk) then
+            count1 <= (others => '0');
+        elsif rising_edge(clk_en) then
             if clk_en = '1' then
                 if state = S0 then
-                    if count1 = "1001" then
-                        count1 <= "0000";
+                    if count1 = "11111111" then 
+                        count1 <= (others => '0');
                     else
                         count1 <= count1 + 1;
                     end if;
                 else
-                    count1 <= "0000";
+                    count1 <= (others => '0');
                 end if;
             end if;
         end if;
@@ -95,22 +91,22 @@ begin
     ------------------------------------------------------------------
     -- 4. Counter 2 Process 
     ------------------------------------------------------------------
-    counter2: process(i_clk, i_rst)
+    counter2: process(clk_en, i_rst)
     begin
         if i_rst = '0' then
-            count2 <= "0000";
-        elsif rising_edge(i_clk) then
+            count2 <= (others => '0');
+        elsif rising_edge(clk_en) then
             if clk_en = '1' then
-                if (state = S0 and count1 = "1001") then
-                    count2 <= "1001"; 
+                if (state = S0 and count1 = "11111111") then
+                    count2 <= "11111111"; 
                 elsif state = S1 then
-                    if count2 = "0001" then
-                        count2 <= "0000";
+                    if count2 = "00000001" then
+                        count2 <= (others => '0');
                     else
                         count2 <= count2 - 1;
                     end if;
                 else
-                    count2 <= "0000";
+                    count2 <= (others => '0');
                 end if;
             end if;
         end if;
@@ -125,7 +121,7 @@ begin
             pwm_cnt <= (others => '0');
             o_led   <= '0';
         elsif rising_edge(i_clk) then
-            pwm_cnt <= pwm_cnt + 1;
+            pwm_cnt <= pwm_cnt + 1; 
 
             if state = S0 then
                 if pwm_cnt < count1 then
