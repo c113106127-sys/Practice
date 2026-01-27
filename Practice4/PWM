@@ -27,7 +27,7 @@ begin
     ------------------------------------------------------------------
     -- 1. DIV Process 
     ------------------------------------------------------------------
-    process(clk_en, i_rst)
+    process(i_clk, i_rst)
     begin
         if i_rst = '0' then
             div_reg <= (others => '0');
@@ -35,55 +35,50 @@ begin
             div_reg <= div_reg + 1;
         end if;
     end process;
-  
- clk_en <= '1' when div_reg(18 downto 0) = 0 else '0';
+    
+    clk_en <= div_reg(9); 
 
     ------------------------------------------------------------------
-    -- 2. FSM Process 
+    -- 2. FSM Process
     ------------------------------------------------------------------
     FSM: process(i_clk, i_rst)
     begin
         if i_rst = '0' then
             state <= S0;
         elsif rising_edge(i_clk) then
-            if clk_en = '1' then
-                case state is
-                    when S0 =>
-                        -- 數到 255 (全1) 切換狀態
-                        if count1 = "11111111" then 
-                            state <= S1;
-                        end if;
-                        
-                    when S1 =>
-                        -- 數到 1 切換狀態
-                        if count2 = "00000001" then
-                            state <= S0;
-                        end if;
-                    when others =>
-                        state <= S0;                      
-                end case;
-            end if;
+            case state is
+                when S0 =>
+                    if count1 = "11111111" then 
+                        state <= S1;
+                    end if;
+                when S1 =>
+                    if count2 = "00000001" then
+                        state <= S0;
+                    end if;
+                when others =>
+                    state <= S0;
+            end case;
         end if;
     end process;
 
     ------------------------------------------------------------------
-    -- 3. Counter 1 Process 
+    -- 3. Counter 1 Process
     ------------------------------------------------------------------
-    counter1: process(clk_en, i_rst)
+    process(clk_en, i_rst)
     begin
         if i_rst = '0' then
             count1 <= (others => '0');
         elsif rising_edge(clk_en) then
-            if clk_en = '1' then
-                if state = S0 then
+            if state = S0 then
+                if pwm_cnt = "11111111" then
                     if count1 = "11111111" then 
                         count1 <= (others => '0');
                     else
                         count1 <= count1 + 1;
                     end if;
-                else
-                    count1 <= (others => '0');
                 end if;
+            else
+                count1 <= (others => '0');
             end if;
         end if;
     end process;
@@ -91,36 +86,36 @@ begin
     ------------------------------------------------------------------
     -- 4. Counter 2 Process 
     ------------------------------------------------------------------
-    counter2: process(clk_en, i_rst)
+    process(clk_en, i_rst)
     begin
         if i_rst = '0' then
             count2 <= (others => '0');
         elsif rising_edge(clk_en) then
-            if clk_en = '1' then
-                if (state = S0 and count1 = "11111111") then
-                    count2 <= "11111111"; 
-                elsif state = S1 then
+            if (state = S0 and count1 = "11111111") then
+                count2 <= "11111111"; 
+            elsif state = S1 then
+                if pwm_cnt = "11111111" then
                     if count2 = "00000001" then
                         count2 <= (others => '0');
                     else
                         count2 <= count2 - 1;
                     end if;
-                else
-                    count2 <= (others => '0');
                 end if;
+            else
+                count2 <= (others => '0');
             end if;
         end if;
     end process;
 
     ------------------------------------------------------------------
-    -- 5. PWM Process 
+    -- 5. PWM Process
     ------------------------------------------------------------------
-    PWM: process(i_clk, i_rst)
+    process(clk_en, i_rst)
     begin
         if i_rst = '0' then
             pwm_cnt <= (others => '0');
             o_led   <= '0';
-        elsif rising_edge(i_clk) then
+        elsif rising_edge(clk_en) then
             pwm_cnt <= pwm_cnt + 1; 
 
             if state = S0 then
