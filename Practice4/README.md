@@ -9,6 +9,5 @@
 <img width="762" height="229" alt="image" src="https://github.com/user-attachments/assets/36834f90-2708-4247-8e76-d202dae5e1d0" />
 
 
-https://github.com/c113106127-sys/Practice/blob/main/Practice4/%E7%AC%AC%E5%9B%9B%E9%A1%8C.mp4
 
 
