@@ -8,8 +8,16 @@
 <img width="1540" height="346" alt="image" src="https://github.com/user-attachments/assets/fb62cc51-d289-4345-bd08-4146cc130b4a" />
 <img width="749" height="247" alt="image" src="https://github.com/user-attachments/assets/00b9cdbe-978c-44c1-9e3a-a8e69c575c15" />
 
+
+
+
 https://github.com/user-attachments/assets/52083aaa-2f7c-442f-a298-92f4ff9def4b
+
+
+
+
 1:48 rst打開，呼吸器開始運作;10:00rst關閉
+
 
 
 
