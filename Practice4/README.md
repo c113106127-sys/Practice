@@ -7,7 +7,8 @@
 <img width="1979" height="1000" alt="image" src="https://github.com/user-attachments/assets/11ee5a3b-dba4-4497-b6c7-5b7f4003a68e" />
 <img width="1540" height="346" alt="image" src="https://github.com/user-attachments/assets/fb62cc51-d289-4345-bd08-4146cc130b4a" />
 <img width="749" height="247" alt="image" src="https://github.com/user-attachments/assets/00b9cdbe-978c-44c1-9e3a-a8e69c575c15" />
-
+https://github.com/c113106127-sys/Practice/blob/main/Practice4/%E7%AC%AC%E5%9B%9B%E9%A1%8C.mp4
+1:48 rst打開，呼吸器開始運作;10:00rst關閉
 
 
 
