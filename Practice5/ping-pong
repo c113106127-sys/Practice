@@ -1,12 +1,13 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
 
 entity practice5 is
     Port ( 
         i_clk      : in  STD_LOGIC; 
         i_rst_n    : in  STD_LOGIC; 
-        i_btn      : in  STD_LOGIC_VECTOR(1 downto 0); 
+        i_btn      : in  STD_LOGIC_VECTOR(1 downto 0); -- btn(0):P1, btn(1):P2
         o_led      : out STD_LOGIC_VECTOR(7 downto 0)
     );
 end practice5;
@@ -16,50 +17,44 @@ architecture Behavioral of practice5 is
     type STATE_TYPE is (S0_MOVE_TO_LEFT, S1_MOVE_TO_RIGHT, S2_SCORE);
     signal s_currentState : STATE_TYPE;
 
-    -- 資料暫存器
+    -- 資料訊號
     signal s_ballPos   : STD_LOGIC_VECTOR(7 downto 0); 
     signal s_scoreP1   : STD_LOGIC_VECTOR(3 downto 0); 
     signal s_scoreP2   : STD_LOGIC_VECTOR(3 downto 0); 
     signal s_ledOut    : STD_LOGIC_VECTOR(7 downto 0);
     
-    -- 除頻相關訊號
+    -- 時序與除頻訊號
     signal div_reg     : STD_LOGIC_VECTOR(24 downto 0); 
     signal s_slow_clk_bit : STD_LOGIC; 
     signal s_bit_last     : STD_LOGIC; 
     signal s_moveTick     : STD_LOGIC; 
 
-    -- 按鍵相關訊號
+    -- 按鍵訊號
     signal s_btnLast   : STD_LOGIC_VECTOR(1 downto 0);
     signal s_btnPressed: STD_LOGIC_VECTOR(1 downto 0);
+
+    -- 冷卻計時器
+    signal s_freezeCnt : integer range 0 to 50000000;
+
+    -- [注意] 這裡沒有 constant 了！所有數值直接寫在下面的 Process 裡
 
 begin
 
     ------------------------------------------------------------------
-    -- 1. DIV Process 
+    -- 1. 時序控制 (除頻 + 邊緣偵測)
     ------------------------------------------------------------------
-    process(i_clk, i_rst_n)
+    p_timing : process(i_clk, i_rst_n)
     begin
         if i_rst_n = '0' then
-            div_reg <= (others => '0');
-        elsif rising_edge(i_clk) then
-            div_reg <= div_reg + 1;
-        end if;
-    end process;
-    -- [模擬用] 
-    -- s_slow_clk_bit <= div_reg(2); 
-    -- [燒錄用] 
-    s_slow_clk_bit <= div_reg(23); 
-
-    ------------------------------------------------------------------
-    -- 2. 產生 s_moveTick (邊緣偵測)
-    ------------------------------------------------------------------
-    process(i_clk, i_rst_n)
-    begin
-        if i_rst_n = '0' then
+            div_reg    <= (others => '0');
             s_bit_last <= '0';
             s_moveTick <= '0';
         elsif rising_edge(i_clk) then
-            s_bit_last <= s_slow_clk_bit; 
+            -- A. 計數器累加
+            div_reg <= div_reg + 1;
+
+            -- B. 邊緣偵測 (產生 s_moveTick)
+            s_bit_last <= s_slow_clk_bit;
             if (s_slow_clk_bit = '1' and s_bit_last = '0') then
                 s_moveTick <= '1';
             else
@@ -68,8 +63,13 @@ begin
         end if;
     end process;
 
+    -- [球速選擇] 直接指定 bit
+    -- div_reg(23) 大約是 6Hz (適合燒錄)
+    -- div_reg(2)  速度很快 (適合模擬，如果要模擬請改這行)
+    s_slow_clk_bit <= div_reg(23); 
+
     ---------------------------------------------------------------------------
-    -- 3. 按鍵處理 Process 
+    -- 2. 按鍵處理
     ---------------------------------------------------------------------------
     p_button_ctrl : process (i_clk, i_rst_n)
     begin
@@ -77,88 +77,101 @@ begin
             s_btnLast    <= "00";
             s_btnPressed <= "00";
         elsif rising_edge(i_clk) then
-            -- 1. 儲存當下的按鍵狀態 
-            s_btnLast <= i_btn;
-
+            s_btnLast    <= i_btn;
             s_btnPressed(0) <= i_btn(0) and (not s_btnLast(0));
             s_btnPressed(1) <= i_btn(1) and (not s_btnLast(1));
         end if;
     end process;
 
     ---------------------------------------------------------------------------
-    -- 4. FSM 狀態機
+    -- 3. FSM 狀態機 (包含冷卻邏輯 - 直接寫數值)
     ---------------------------------------------------------------------------
     p_fsm : process (i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
-            s_currentState      <= S2_SCORE;
+            s_currentState <= S2_SCORE;
+            s_freezeCnt    <= 0;
         elsif rising_edge(i_clk) then
             case s_currentState is
                 
                 when S0_MOVE_TO_LEFT =>
-                    if (s_btnPressed(1) = '1') then
+                    s_freezeCnt <= 0; 
+                    
+                    if (s_btnPressed(1) = '1') then 
                         if (s_ballPos(7) = '1') then
-                            s_currentState  <= S1_MOVE_TO_RIGHT;
+                            s_currentState <= S1_MOVE_TO_RIGHT; 
                         else
-                            s_currentState  <= S2_SCORE;         
+                            s_currentState <= S2_SCORE;         
                         end if;
-                    elsif (s_moveTick = '1') then 
+                    elsif (s_moveTick = '1') then   
                         if (s_ballPos(7) = '1') then 
-                            s_currentState  <= S2_SCORE;
+                            s_currentState <= S2_SCORE;         
                         end if;
                     end if;
 
                 when S1_MOVE_TO_RIGHT =>
-                    if (s_btnPressed(0) = '1') then
+                    s_freezeCnt <= 0; 
+
+                    if (s_btnPressed(0) = '1') then 
                         if (s_ballPos(0) = '1') then
-                            s_currentState  <= S0_MOVE_TO_LEFT;  
+                            s_currentState <= S0_MOVE_TO_LEFT;  
                         else
-                            s_currentState  <= S2_SCORE;         
+                            s_currentState <= S2_SCORE;         
                         end if;
-                    elsif (s_moveTick = '1') then
+                    elsif (s_moveTick = '1') then   
                         if (s_ballPos(0) = '1') then
-                            s_currentState  <= S2_SCORE;
+                            s_currentState <= S2_SCORE;         
                         end if;
                     end if;
 
                 when S2_SCORE =>
-                    if (s_btnPressed(0) = '1') then
-                        s_currentState      <= S0_MOVE_TO_LEFT;
-                    elsif (s_btnPressed(1) = '1') then
-                        s_currentState      <= S1_MOVE_TO_RIGHT;
+                    -- [修改處] 直接寫死數值 50000000 (1秒)
+                    -- 若要跑模擬，請手動將 50000000 改成 10
+                    if (s_freezeCnt < 50000000) then
+                        s_freezeCnt <= s_freezeCnt + 1;
+                    else
+                        -- 時間到，允許按鍵
+                        if (s_btnPressed(0) = '1') then
+                            s_currentState <= S0_MOVE_TO_LEFT;
+                        elsif (s_btnPressed(1) = '1') then
+                            s_currentState <= S1_MOVE_TO_RIGHT;
+                        end if;
                     end if;
 
                 when others =>
-                    s_currentState          <= S2_SCORE;
+                    s_currentState <= S2_SCORE;
             end case;
         end if;
     end process;
 
     ---------------------------------------------------------------------------
-    -- 5. 球的位置控制
+    -- 4. 球的位置控制 (包含冷卻檢查 - 直接寫數值)
     ---------------------------------------------------------------------------
     p_ball : process (i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
-            s_ballPos       <= "00000001";
+            s_ballPos <= "00000001";
         elsif rising_edge(i_clk) then
             case s_currentState is
-                
                 when S0_MOVE_TO_LEFT =>
                     if ((s_moveTick = '1') and (s_ballPos(7) = '0')) then
-                        s_ballPos   <= (s_ballPos(6 downto 0) & '0'); 
+                        s_ballPos <= (s_ballPos(6 downto 0) & '0'); 
                     end if;
 
                 when S1_MOVE_TO_RIGHT =>
                     if ((s_moveTick = '1') and (s_ballPos(0) = '0')) then
-                        s_ballPos   <= ('0' & s_ballPos(7 downto 1)); 
+                        s_ballPos <= ('0' & s_ballPos(7 downto 1)); 
                     end if;
 
                 when S2_SCORE =>
-                    if (s_btnPressed(0) = '1') then
-                        s_ballPos   <= "00000001";
-                    elsif (s_btnPressed(1) = '1') then
-                        s_ballPos   <= "10000000";
+                    -- [修改處] 直接寫死數值 50000000
+                    -- 若要跑模擬，請手動將 50000000 改成 10
+                    if (s_freezeCnt >= 50000000) then
+                        if (s_btnPressed(0) = '1') then
+                            s_ballPos <= "00000001"; 
+                        elsif (s_btnPressed(1) = '1') then
+                            s_ballPos <= "10000000"; 
+                        end if;
                     end if;
 
                 when others =>
@@ -167,8 +180,8 @@ begin
         end if;
     end process;
 
-   ---------------------------------------------------------------------------
-    -- 6. 分數控制 Process 
+    ---------------------------------------------------------------------------
+    -- 5. 分數控制
     ---------------------------------------------------------------------------
     p_score_ctrl : process (i_clk, i_rst_n)
     begin
@@ -178,33 +191,29 @@ begin
         elsif rising_edge(i_clk) then
             
             case s_currentState is
-                -- [情況 A] 球往左跑 (S0)，P2 防守
                 when S0_MOVE_TO_LEFT =>
-                    -- 檢查 P2 是否犯規(提早按) 或 失誤(球到底線還沒按)
                     if (((s_btnPressed(1) = '1') and (s_ballPos(7) = '0')) or 
                         ((s_moveTick = '1')     and (s_ballPos(7) = '1'))) then
                         
-                        -- P1 得分！檢查是否獲勝 (目前14分，加1變成15)
-                        if (s_scoreP1 = "1110") then
-                            s_scoreP1 <= (others => '0'); -- P1 獲勝歸零
-                            s_scoreP2 <= (others => '0'); -- P2 也被重置
+                        -- P1 得分 (判斷 14 分)
+                        if (s_scoreP1 = "1110") then 
+                            s_scoreP1 <= (others => '0');
+                            s_scoreP2 <= (others => '0');
                         else
-                            s_scoreP1 <= s_scoreP1 + 1;   -- P1 加分
+                            s_scoreP1 <= s_scoreP1 + 1;
                         end if;
                     end if;
 
-                -- [情況 B] 球往右跑 (S1)，P1 防守
                 when S1_MOVE_TO_RIGHT =>
-                    -- 檢查 P1 是否犯規(提早按) 或 失誤(球到底線還沒按)
                     if (((s_btnPressed(0) = '1') and (s_ballPos(0) = '0')) or 
                         ((s_moveTick = '1')     and (s_ballPos(0) = '1'))) then
                         
-                        -- P2 得分！檢查是否獲勝
-                        if (s_scoreP2 = "1110") then
-                            s_scoreP2 <= (others => '0'); -- P2 獲勝歸零
-                            s_scoreP1 <= (others => '0'); -- P1 也被重置
+                        -- P2 得分 (判斷 14 分)
+                        if (s_scoreP2 = "1110") then 
+                            s_scoreP2 <= (others => '0');
+                            s_scoreP1 <= (others => '0');
                         else
-                            s_scoreP2 <= s_scoreP2 + 1;   -- P2 加分
+                            s_scoreP2 <= s_scoreP2 + 1;
                         end if;
                     end if;
 
@@ -213,26 +222,24 @@ begin
             end case;
         end if;
     end process;
+
     ---------------------------------------------------------------------------
-    -- 7. LED 輸出控制
+    -- 6. LED 輸出
     ---------------------------------------------------------------------------
-    led: process (i_clk, i_rst_n)
+    p_led: process (i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
-            s_ledOut        <= (others => '0');
+            s_ledOut <= (others => '0');
         elsif rising_edge(i_clk) then
             case s_currentState is
                 when S0_MOVE_TO_LEFT =>
-                    s_ledOut    <= s_ballPos;
-                
+                    s_ledOut <= s_ballPos;
                 when S1_MOVE_TO_RIGHT =>
-                    s_ledOut    <= s_ballPos;
-                
+                    s_ledOut <= s_ballPos;
                 when S2_SCORE =>
-                    s_ledOut    <= (s_scoreP2 & s_scoreP1);
-                
+                    s_ledOut <= (s_scoreP2 & s_scoreP1);
                 when others =>
-                    s_ledOut    <= (others => '0');
+                    s_ledOut <= (others => '0');
             end case;
         end if;
     end process;
