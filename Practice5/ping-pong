@@ -1,68 +1,56 @@
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.STD_LOGIC_UNSIGNED.ALL; -- 啟用向量加減法
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
 
 entity practice5 is
     Port ( 
-        i_clk     : in  STD_LOGIC; 
-        i_rst_n   : in  STD_LOGIC; 
-        i_btn     : in  STD_LOGIC_VECTOR(1 downto 0); 
-        o_led     : out STD_LOGIC_VECTOR(7 downto 0)
+        i_clk      : in  STD_LOGIC; 
+        i_rst_n    : in  STD_LOGIC; 
+        i_btn      : in  STD_LOGIC_VECTOR(1 downto 0);
+        o_led      : out STD_LOGIC_VECTOR(7 downto 0)
     );
 end practice5;
 
 architecture Behavioral of practice5 is
 
     -- [1] 狀態定義
-    type state_type is (S0_GAME, S1_SCORE);
+    type state_type is (S0_MOVE_TO_LEFT, S1_MOVE_TO_RIGHT, S2_SCORE);
     signal current_state : state_type;
 
-    -- [2] 遊戲物理訊號
-    -- 球位置: One-hot 編碼 (例如 "00000001")
+    -- [2] 遊戲訊號
     signal ball_pos : STD_LOGIC_VECTOR(7 downto 0); 
-    signal ball_dir : std_logic; -- '0': 向右, '1': 向左
-
-    -- [3] 分數訊號
     signal score_p1 : STD_LOGIC_VECTOR(3 downto 0); 
     signal score_p2 : STD_LOGIC_VECTOR(3 downto 0); 
+    signal led_score_view : STD_LOGIC_VECTOR(7 downto 0);
 
-    -- [4] 除頻器參數 (決定球速)
-    -- 50MHz / 4 = 12,500,000 (每秒移動 4 格)
-    constant DIV_MAX_VAL : integer := 12500000 - 1; -- [燒錄用]
-    --constant DIV_MAX_VAL : integer := 5;            -- [模擬用] 請在模擬時解開此行
-    signal div_cnt   : STD_LOGIC_VECTOR(23 downto 0);
-    signal move_tick : std_logic; 
+    -- [3] 除頻與按鍵
+    constant DIV_MAX_VAL : integer := 5; -- 模擬用 (燒錄請改大)
+    signal div_cnt     : STD_LOGIC_VECTOR(23 downto 0);
+    signal move_tick   : std_logic; 
+    signal btn_pressed : std_logic_vector(1 downto 0); 
+    signal btn_last    : std_logic_vector(1 downto 0);
 
-    -- [5] 鎖定計時器參數 (決定計分畫面停留時間)
-    -- 50,000,000 cycles = 1 秒
-    constant LOCK_MAX_VAL : integer := 50000000; -- [燒錄用]
-    --constant LOCK_MAX_VAL : integer := 5;       -- [模擬用] 請在模擬時解開此行
-    signal lock_cnt : integer range 0 to LOCK_MAX_VAL;
-
-    -- [6] 按鍵訊號
-    signal btn_d1, btn_d2 : std_logic_vector(1 downto 0);
-    signal btn_pressed    : std_logic_vector(1 downto 0);
-
-    -- [7] 內部事件旗標 (Event Flags)
-    signal event_p1_scored : std_logic; -- P1 得分 (P2 失誤)
-    signal event_p2_scored : std_logic; -- P2 得分 (P1 失誤)
-
-    -- [8] LED 畫面緩衝
-    signal led_game_view   : std_logic_vector(7 downto 0);
-    signal led_score_view  : std_logic_vector(7 downto 0);
+    -- [4] 各 Process 之間的溝通訊號 (建議值)
+    -- S0 建議值
+    signal s0_next_state : state_type;
+    signal s0_next_ball  : STD_LOGIC_VECTOR(7 downto 0);
+    signal s0_score_inc  : std_logic;
+    -- S1 建議值
+    signal s1_next_state : state_type;
+    signal s1_next_ball  : STD_LOGIC_VECTOR(7 downto 0);
+    signal s1_score_inc  : std_logic;
+    -- S2 建議值
+    signal s2_next_state : state_type;
+    signal s2_next_ball  : STD_LOGIC_VECTOR(7 downto 0);
 
 begin
 
     ----------------------------------------------------------
-    -- 0. LED 輸出多工器
-    -- 根據狀態切換顯示內容
+    -- 1. 基礎設施 Process (除頻器 & 按鍵)
     ----------------------------------------------------------
-    o_led <= led_game_view when current_state = S0_GAME else led_score_view;
-
-    ----------------------------------------------------------
-    -- Process 1: 除頻器 (產生 move_tick)
-    ----------------------------------------------------------
-    div_process : process(i_clk, i_rst_n)
+    
+    -- 除頻器
+    process(i_clk, i_rst_n)
     begin
         if i_rst_n = '0' then
             div_cnt <= (others => '0');
@@ -70,7 +58,7 @@ begin
         elsif rising_edge(i_clk) then
             if div_cnt = DIV_MAX_VAL then
                 div_cnt <= (others => '0');
-                move_tick <= '1'; 
+                move_tick <= '1';
             else
                 div_cnt <= div_cnt + 1;
                 move_tick <= '0';
@@ -78,144 +66,131 @@ begin
         end if;
     end process;
 
-    ----------------------------------------------------------
-    -- Process 2: FSM 狀態機 (含防彈跳鎖定功能)
-    ----------------------------------------------------------
-    fsm_process : process(i_clk, i_rst_n)
+    -- 按鍵邊緣偵測
+    process(i_clk, i_rst_n)
     begin
         if i_rst_n = '0' then
-            current_state <= S1_SCORE;
-            lock_cnt <= 0;
+            btn_last <= "00";
+            btn_pressed <= "00";
+        elsif rising_edge(i_clk) then
+            btn_pressed <= i_btn and (not btn_last);
+            btn_last <= i_btn;
+        end if;
+    end process;
+
+    ----------------------------------------------------------
+    -- 2. 狀態邏輯 Process (S0, S1, S2 分開計算)
+    ----------------------------------------------------------
+
+    -- [Process S0] 球往左跑 (0->7)
+    proc_s0_logic : process(ball_pos, btn_pressed, move_tick)
+    begin
+        s0_next_state <= S0_MOVE_TO_LEFT; -- 預設
+        s0_next_ball  <= ball_pos;
+        s0_score_inc  <= '0';
+
+        if btn_pressed(1) = '1' then
+            if ball_pos(7) = '1' then
+                s0_next_state <= S1_MOVE_TO_RIGHT;
+            else
+                s0_next_state <= S2_SCORE;
+                s0_score_inc  <= '1';
+            end if;
+        elsif move_tick = '1' then
+            if ball_pos(7) = '0' then
+                s0_next_ball <= ball_pos(6 downto 0) & '0';
+            else
+                s0_next_state <= S2_SCORE;
+                s0_score_inc  <= '1';
+            end if;
+        end if;
+    end process;
+
+    -- [Process S1] 球往右跑 (7->0)
+    proc_s1_logic : process(ball_pos, btn_pressed, move_tick)
+    begin
+        s1_next_state <= S1_MOVE_TO_RIGHT; -- 預設
+        s1_next_ball  <= ball_pos;
+        s1_score_inc  <= '0';
+
+        if btn_pressed(0) = '1' then
+            if ball_pos(0) = '1' then
+                s1_next_state <= S0_MOVE_TO_LEFT;
+            else
+                s1_next_state <= S2_SCORE;
+                s1_score_inc  <= '1';
+            end if;
+        elsif move_tick = '1' then
+            if ball_pos(0) = '0' then
+                s1_next_ball <= '0' & ball_pos(7 downto 1);
+            else
+                s1_next_state <= S2_SCORE;
+                s1_score_inc  <= '1';
+            end if;
+        end if;
+    end process;
+
+    -- [Process S2] 計分等待
+    proc_s2_logic : process(ball_pos, btn_pressed)
+    begin
+        s2_next_state <= S2_SCORE; -- 預設
+        s2_next_ball  <= ball_pos;
+
+        if btn_pressed(0) = '1' then
+            s2_next_state <= S0_MOVE_TO_LEFT;
+            s2_next_ball  <= "00000001";
+        elsif btn_pressed(1) = '1' then
+            s2_next_state <= S1_MOVE_TO_RIGHT;
+            s2_next_ball  <= "10000000";
+        end if;
+    end process;
+
+    ----------------------------------------------------------
+    -- 3. 主控 Process (集中更新 State & Register)
+    ----------------------------------------------------------
+    main_update_process : process(i_clk, i_rst_n)
+    begin
+        if i_rst_n = '0' then
+            current_state <= S2_SCORE;
+            ball_pos      <= "00000001";
+            score_p1      <= (others => '0');
+            score_p2      <= (others => '0');
         elsif rising_edge(i_clk) then
             case current_state is
-                
-                when S0_GAME =>
-                    -- 只要收到物理引擎傳來的得分訊號，就結束遊戲
-                    if event_p1_scored = '1' or event_p2_scored = '1' then
-                        current_state <= S1_SCORE;
-                        lock_cnt <= 0; -- 重置鎖定計時器
-                    end if;
+                when S0_MOVE_TO_LEFT =>
+                    current_state <= s0_next_state;
+                    ball_pos      <= s0_next_ball;
+                    if s0_score_inc = '1' then score_p1 <= score_p1 + 1; end if;
 
-                when S1_SCORE =>
-                    -- 階段 1: 強制鎖定 (倒數計時)
-                    if lock_cnt < LOCK_MAX_VAL then
-                        lock_cnt <= lock_cnt + 1;
-                    
-                    -- 階段 2: 鎖定結束，等待按鈕重開局
-                    else
-                        if btn_pressed(0) = '1' or btn_pressed(1) = '1' then
-                            current_state <= S0_GAME;
-                        end if;
-                    end if;
+                when S1_MOVE_TO_RIGHT =>
+                    current_state <= s1_next_state;
+                    ball_pos      <= s1_next_ball;
+                    if s1_score_inc = '1' then score_p2 <= score_p2 + 1; end if;
+
+                when S2_SCORE =>
+                    current_state <= s2_next_state;
+                    ball_pos      <= s2_next_ball; 
+
+                when others =>
+                    current_state <= S2_SCORE;
             end case;
         end if;
     end process;
 
     ----------------------------------------------------------
-    -- Process 3: 遊戲物理邏輯 (Physics & Logic)
+    -- 4. 硬體輸出連接 (LED Output Driver)
+    -- 這裡負責將內部訊號 (ball_pos, score) 轉譯給外部腳位 (o_led)
     ----------------------------------------------------------
-    game_physics_process : process(i_clk, i_rst_n)
-    begin
-        if i_rst_n = '0' then
-            ball_pos <= "00000001"; -- 初始位置 (Bit 0)
-            ball_dir <= '1';        -- 初始方向 (向左)
-            btn_d1   <= "00"; btn_d2 <= "00";
-            event_p1_scored <= '0';
-            event_p2_scored <= '0';
-            led_game_view   <= (others => '0');
-        elsif rising_edge(i_clk) then
-            
-            -- [3.1] 按鍵邊緣偵測
-            btn_d1 <= i_btn;
-            btn_d2 <= btn_d1;
-            btn_pressed <= btn_d1 and (not btn_d2);
+    
+    -- 組合分數訊號
+    led_score_view(7 downto 4) <= score_p2;
+    led_score_view(3 downto 0) <= score_p1;
 
-            -- [3.2] 重置事件旗標 (Pulse)
-            event_p1_scored <= '0';
-            event_p2_scored <= '0';
-
-            -- [3.3] 狀態邏輯
-            if current_state = S0_GAME then
-                
-                -- 更新遊戲畫面 (One-hot)
-                led_game_view <= ball_pos;
-
-                -- A. 處理球的移動 (移位操作)
-                if move_tick = '1' then
-                    if ball_dir = '0' then -- 向右移動 (往 Bit 0)
-                        if ball_pos(0) = '0' then
-                            -- 右移: 左側補0, 取高7位往低位移
-                            ball_pos <= '0' & ball_pos(7 downto 1);
-                        else
-                            -- 球在 Bit 0 還要往右 -> 漏接 (P2 得分)
-                            event_p2_scored <= '1';
-                        end if;
-                    else -- 向左移動 (往 Bit 7)
-                        if ball_pos(7) = '0' then
-                            -- 左移: 低7位往高位移, 右側補0
-                            ball_pos <= ball_pos(6 downto 0) & '0';
-                        else
-                            -- 球在 Bit 7 還要往左 -> 漏接 (P1 得分)
-                            event_p1_scored <= '1';
-                        end if;
-                    end if;
-                end if;
-
-                -- B. 處理擊球與犯規
-                -- Player 1 (右邊按鈕)
-                if btn_pressed(0) = '1' then
-                    if ball_pos(0) = '1' then
-                        ball_dir <= '1'; -- 成功反彈 (向左)
-                    else
-                        event_p2_scored <= '1'; -- 犯規 (P2 得分)
-                    end if;
-                end if;
-
-                -- Player 2 (左邊按鈕)
-                if btn_pressed(1) = '1' then
-                    if ball_pos(7) = '1' then
-                        ball_dir <= '0'; -- 成功反彈 (向右)
-                    else
-                        event_p1_scored <= '1'; -- 犯規 (P1 得分)
-                    end if;
-                end if;
-
-            else
-                -- [在 S1 狀態時] 
-                -- 偵測到準備重開局 (鎖定時間結束且按鈕按下)，重置球
-                -- 這裡利用 current_state 是 S1, 但下一刻要變 S0 的瞬間
-                if lock_cnt = LOCK_MAX_VAL and (btn_pressed(0)='1' or btn_pressed(1)='1') then
-                    ball_pos <= "00000001";
-                    ball_dir <= '1';
-                end if;
-            end if;
-        end if;
-    end process;
-
-    ----------------------------------------------------------
-    -- Process 4: 分數管理邏輯
-    ----------------------------------------------------------
-    score_keeper_process : process(i_clk, i_rst_n)
-    begin
-        if i_rst_n = '0' then
-            score_p1 <= (others => '0');
-            score_p2 <= (others => '0');
-            led_score_view <= (others => '0');
-        elsif rising_edge(i_clk) then
-            
-            -- 接收得分事件 (二進制加法)
-            if event_p1_scored = '1' then
-                score_p1 <= score_p1 + 1;
-            end if;
-
-            if event_p2_scored = '1' then
-                score_p2 <= score_p2 + 1;
-            end if;
-
-            -- 更新計分畫面
-            led_score_view(7 downto 4) <= score_p2;
-            led_score_view(3 downto 0) <= score_p1;
-        end if;
-    end process;
+    -- LED 多工器：根據狀態決定顯示球還是顯示分數
+    with current_state select
+        o_led <= ball_pos       when S0_MOVE_TO_LEFT,
+                 ball_pos       when S1_MOVE_TO_RIGHT,
+                 led_score_view when S2_SCORE,
+                 (others => '0') when others;
 
 end Behavioral;
