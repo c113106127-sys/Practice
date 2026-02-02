@@ -6,7 +6,7 @@ entity practice5 is
     Port ( 
         i_clk      : in  STD_LOGIC; 
         i_rst_n    : in  STD_LOGIC; 
-        i_btn      : in  STD_LOGIC_VECTOR(1 downto 0); -- btn(0):P1, btn(1):P2
+        i_btn      : in  STD_LOGIC_VECTOR(1 downto 0); 
         o_led      : out STD_LOGIC_VECTOR(7 downto 0)
     );
 end practice5;
@@ -14,7 +14,6 @@ end practice5;
 architecture Behavioral of practice5 is
 
     type STATE_TYPE is (S0_MOVE_TO_LEFT, S1_MOVE_TO_RIGHT, S2_SCORE);
-    
     signal s_currentState : STATE_TYPE;
 
     -- 資料暫存器
@@ -23,79 +22,71 @@ architecture Behavioral of practice5 is
     signal s_scoreP2   : STD_LOGIC_VECTOR(3 downto 0); 
     signal s_ledOut    : STD_LOGIC_VECTOR(7 downto 0);
     
-    -- 控制訊號
-    signal s_divCnt    : STD_LOGIC_VECTOR(23 downto 0);
-    signal s_moveTick  : STD_LOGIC; 
+    -- 除頻相關訊號
+    signal div_reg     : STD_LOGIC_VECTOR(24 downto 0); 
+    signal s_slow_clk_bit : STD_LOGIC; 
+    signal s_bit_last     : STD_LOGIC; 
+    signal s_moveTick     : STD_LOGIC; 
+
+    -- 按鍵相關訊號
     signal s_btnLast   : STD_LOGIC_VECTOR(1 downto 0);
     signal s_btnPressed: STD_LOGIC_VECTOR(1 downto 0);
 
-    -- [規範 1] 常數命名 c_
-    constant c_divMax  : integer := 50000000 - 1; -- [燒錄用]
-    --constant c_divMax  : integer := 5;            -- [模擬用]
-    constant c_winScore: STD_LOGIC_VECTOR(3 downto 0) := "1110"; -- 14分 (加1變15)
-
 begin
 
-    ---------------------------------------------------------------------------
-    -- Process 1: 控制 s_divCnt (除頻計數器)
-    ---------------------------------------------------------------------------
-    p_divCnt : process (i_clk, i_rst_n)
+    ------------------------------------------------------------------
+    -- 1. DIV Process 
+    ------------------------------------------------------------------
+    process(i_clk, i_rst_n)
     begin
-        if (i_rst_n = '0') then
-            s_divCnt        <= (others => '0');
+        if i_rst_n = '0' then
+            div_reg <= (others => '0');
         elsif rising_edge(i_clk) then
-            if (s_divCnt = c_divMax) then
-                s_divCnt    <= (others => '0');
+            div_reg <= div_reg + 1;
+        end if;
+    end process;
+    -- [模擬用] 
+    -- s_slow_clk_bit <= div_reg(2); 
+    -- [燒錄用] 
+    s_slow_clk_bit <= div_reg(23); 
+
+    ------------------------------------------------------------------
+    -- 2. 產生 s_moveTick (邊緣偵測)
+    ------------------------------------------------------------------
+    process(i_clk, i_rst_n)
+    begin
+        if i_rst_n = '0' then
+            s_bit_last <= '0';
+            s_moveTick <= '0';
+        elsif rising_edge(i_clk) then
+            s_bit_last <= s_slow_clk_bit; 
+            if (s_slow_clk_bit = '1' and s_bit_last = '0') then
+                s_moveTick <= '1';
             else
-                s_divCnt    <= s_divCnt + 1;
+                s_moveTick <= '0';
             end if;
         end if;
     end process;
 
     ---------------------------------------------------------------------------
-    -- Process 2: 控制 s_moveTick (移動觸發訊號)
+    -- 3. 按鍵處理 Process 
     ---------------------------------------------------------------------------
-    p_moveTick : process (i_clk, i_rst_n)
+    p_button_ctrl : process (i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
-            s_moveTick      <= '0';
+            s_btnLast    <= "00";
+            s_btnPressed <= "00";
         elsif rising_edge(i_clk) then
-            if (s_divCnt = c_divMax) then
-                s_moveTick  <= '1';
-            else
-                s_moveTick  <= '0';
-            end if;
+            -- 1. 儲存當下的按鍵狀態 
+            s_btnLast <= i_btn;
+
+            s_btnPressed(0) <= i_btn(0) and (not s_btnLast(0));
+            s_btnPressed(1) <= i_btn(1) and (not s_btnLast(1));
         end if;
     end process;
 
     ---------------------------------------------------------------------------
-    -- Process 3: 控制 s_btnLast (按鍵狀態暫存)
-    ---------------------------------------------------------------------------
-    p_btnLast : process (i_clk, i_rst_n)
-    begin
-        if (i_rst_n = '0') then
-            s_btnLast       <= "00";
-        elsif rising_edge(i_clk) then
-            s_btnLast       <= i_btn;
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- Process 4: 控制 s_btnPressed (按鍵邊緣偵測)
-    ---------------------------------------------------------------------------
-    p_btnPressed : process (i_clk, i_rst_n)
-    begin
-        if (i_rst_n = '0') then
-            s_btnPressed    <= "00";
-        elsif rising_edge(i_clk) then
-            -- 偵測 rising edge: ((現在是1) and (上一次是0))
-            s_btnPressed(0) <= ((i_btn(0)) and (not s_btnLast(0)));
-            s_btnPressed(1) <= ((i_btn(1)) and (not s_btnLast(1)));
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- Process 5: 控制 s_currentState (FSM 狀態流轉)
+    -- 4. FSM 狀態機
     ---------------------------------------------------------------------------
     p_fsm : process (i_clk, i_rst_n)
     begin
@@ -105,29 +96,25 @@ begin
             case s_currentState is
                 
                 when S0_MOVE_TO_LEFT =>
-                    -- P2 擊球 (按鍵優先)
                     if (s_btnPressed(1) = '1') then
                         if (s_ballPos(7) = '1') then
-                            s_currentState  <= S1_MOVE_TO_RIGHT; -- 成功回擊
+                            s_currentState  <= S1_MOVE_TO_RIGHT;
                         else
-                            s_currentState  <= S2_SCORE;         -- 犯規
+                            s_currentState  <= S2_SCORE;         
                         end if;
-                    -- 球移動 (檢查失誤)
-                    elsif (s_moveTick = '1') then
-                        if (s_ballPos(7) = '1') then -- 球到底線且Tick發生=失誤
+                    elsif (s_moveTick = '1') then 
+                        if (s_ballPos(7) = '1') then 
                             s_currentState  <= S2_SCORE;
                         end if;
                     end if;
 
                 when S1_MOVE_TO_RIGHT =>
-                    -- P1 擊球 (按鍵優先)
                     if (s_btnPressed(0) = '1') then
                         if (s_ballPos(0) = '1') then
-                            s_currentState  <= S0_MOVE_TO_LEFT;  -- 成功回擊
+                            s_currentState  <= S0_MOVE_TO_LEFT;  
                         else
-                            s_currentState  <= S2_SCORE;         -- 犯規
+                            s_currentState  <= S2_SCORE;         
                         end if;
-                    -- 球移動 (檢查失誤)
                     elsif (s_moveTick = '1') then
                         if (s_ballPos(0) = '1') then
                             s_currentState  <= S2_SCORE;
@@ -148,7 +135,7 @@ begin
     end process;
 
     ---------------------------------------------------------------------------
-    -- Process 6: 控制 s_ballPos (球的位置)
+    -- 5. 球的位置控制
     ---------------------------------------------------------------------------
     p_ball : process (i_clk, i_rst_n)
     begin
@@ -159,16 +146,15 @@ begin
                 
                 when S0_MOVE_TO_LEFT =>
                     if ((s_moveTick = '1') and (s_ballPos(7) = '0')) then
-                        s_ballPos   <= (s_ballPos(6 downto 0) & '0'); -- 左移
+                        s_ballPos   <= (s_ballPos(6 downto 0) & '0'); 
                     end if;
 
                 when S1_MOVE_TO_RIGHT =>
                     if ((s_moveTick = '1') and (s_ballPos(0) = '0')) then
-                        s_ballPos   <= ('0' & s_ballPos(7 downto 1)); -- 右移
+                        s_ballPos   <= ('0' & s_ballPos(7 downto 1)); 
                     end if;
 
                 when S2_SCORE =>
-                    -- 發球初始化
                     if (s_btnPressed(0) = '1') then
                         s_ballPos   <= "00000001";
                     elsif (s_btnPressed(1) = '1') then
@@ -181,80 +167,56 @@ begin
         end if;
     end process;
 
+   ---------------------------------------------------------------------------
+    -- 6. 分數控制 Process 
     ---------------------------------------------------------------------------
-    -- Process 7: 控制 s_scoreP1 (P1 分數)
-    -- 包含得分判定與雙方滿15分重置邏輯
-    ---------------------------------------------------------------------------
-    p_scoreP1 : process (i_clk, i_rst_n)
+    p_score_ctrl : process (i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
-            s_scoreP1       <= (others => '0');
-        elsif rising_edge(i_clk) then
-            -- 情況 A: S0 狀態下 P2 犯規 (提早按) 或 失誤 (沒接球) -> P1 得分
-            if (s_currentState = S0_MOVE_TO_LEFT) then
-                if (((s_btnPressed(1) = '1') and (s_ballPos(7) = '0')) or 
-                    ((s_moveTick = '1') and (s_ballPos(7) = '1'))) then
-                    
-                    -- 重置檢查：如果我現在14分，加1變成15 -> 歸零
-                    if (s_scoreP1 = c_winScore) then
-                        s_scoreP1   <= (others => '0');
-                    else
-                        s_scoreP1   <= s_scoreP1 + 1;
-                    end if;
-                end if;
-            
-            -- 情況 B: S1 狀態下 P2 得分導致 P2 滿分 -> P1 也要被迫歸零
-            elsif (s_currentState = S1_MOVE_TO_RIGHT) then
-                if (((s_btnPressed(0) = '1') and (s_ballPos(0) = '0')) or 
-                    ((s_moveTick = '1') and (s_ballPos(0) = '1'))) then
-                    
-                    if (s_scoreP2 = c_winScore) then
-                        s_scoreP1   <= (others => '0'); -- 對手贏了，我也重置
-                    end if;
-                end if;
-            end if;
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- Process 8: 控制 s_scoreP2 (P2 分數)
-    ---------------------------------------------------------------------------
-    p_scoreP2 : process (i_clk, i_rst_n)
-    begin
-        if (i_rst_n = '0') then
-            s_scoreP2       <= (others => '0');
+            s_scoreP1 <= (others => '0');
+            s_scoreP2 <= (others => '0');
         elsif rising_edge(i_clk) then
             
-            -- 情況 A: S1 狀態下 P1 犯規或失誤 -> P2 得分
-            if (s_currentState = S1_MOVE_TO_RIGHT) then
-                if (((s_btnPressed(0) = '1') and (s_ballPos(0) = '0')) or 
-                    ((s_moveTick = '1') and (s_ballPos(0) = '1'))) then
-                    
-                    if (s_scoreP2 = c_winScore) then
-                        s_scoreP2   <= (others => '0');
-                    else
-                        s_scoreP2   <= s_scoreP2 + 1;
+            case s_currentState is
+                -- [情況 A] 球往左跑 (S0)，P2 防守
+                when S0_MOVE_TO_LEFT =>
+                    -- 檢查 P2 是否犯規(提早按) 或 失誤(球到底線還沒按)
+                    if (((s_btnPressed(1) = '1') and (s_ballPos(7) = '0')) or 
+                        ((s_moveTick = '1')     and (s_ballPos(7) = '1'))) then
+                        
+                        -- P1 得分！檢查是否獲勝 (目前14分，加1變成15)
+                        if (s_scoreP1 = "1110") then
+                            s_scoreP1 <= (others => '0'); -- P1 獲勝歸零
+                            s_scoreP2 <= (others => '0'); -- P2 也被重置
+                        else
+                            s_scoreP1 <= s_scoreP1 + 1;   -- P1 加分
+                        end if;
                     end if;
-                end if;
 
-            -- 情況 B: S0 狀態下 P1 得分導致 P1 滿分 -> P2 被迫歸零
-            elsif (s_currentState = S0_MOVE_TO_LEFT) then
-                if (((s_btnPressed(1) = '1') and (s_ballPos(7) = '0')) or 
-                    ((s_moveTick = '1') and (s_ballPos(7) = '1'))) then
-                    
-                    if (s_scoreP1 = c_winScore) then
-                        s_scoreP2   <= (others => '0');
+                -- [情況 B] 球往右跑 (S1)，P1 防守
+                when S1_MOVE_TO_RIGHT =>
+                    -- 檢查 P1 是否犯規(提早按) 或 失誤(球到底線還沒按)
+                    if (((s_btnPressed(0) = '1') and (s_ballPos(0) = '0')) or 
+                        ((s_moveTick = '1')     and (s_ballPos(0) = '1'))) then
+                        
+                        -- P2 得分！檢查是否獲勝
+                        if (s_scoreP2 = "1110") then
+                            s_scoreP2 <= (others => '0'); -- P2 獲勝歸零
+                            s_scoreP1 <= (others => '0'); -- P1 也被重置
+                        else
+                            s_scoreP2 <= s_scoreP2 + 1;   -- P2 加分
+                        end if;
                     end if;
-                end if;
-            end if;
+
+                when others =>
+                    null;
+            end case;
         end if;
     end process;
-
     ---------------------------------------------------------------------------
-    -- Process 9: 控制 s_ledOut (LED 輸出暫存器)
-    -- [規範 5] <= 左右加上空格或一併對齊
+    -- 7. LED 輸出控制
     ---------------------------------------------------------------------------
-    p_led : process (i_clk, i_rst_n)
+    led: process (i_clk, i_rst_n)
     begin
         if (i_rst_n = '0') then
             s_ledOut        <= (others => '0');
@@ -275,7 +237,6 @@ begin
         end if;
     end process;
 
-    -- 實體輸出連接
     o_led <= s_ledOut;
 
 end Behavioral;
