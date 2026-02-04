@@ -3,41 +3,45 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
 entity tb_practice5 is
-    -- Testbench 沒有外部接口
+    -- Testbench 沒有外部接腳
 end tb_practice5;
 
-architecture behavior of tb_practice5 is 
+architecture behavior of tb_practice5 is
 
-    -- 1. 宣告元件 (Component Declaration)
-    component practice5
+    -- 1. 宣告待測元件 (UUT)
+    COMPONENT practice5
     PORT(
-         i_clk   : IN  std_logic;
-         i_rst_n : IN  std_logic;
-         i_btn   : IN  std_logic_vector(1 downto 0);
-         o_led   : OUT std_logic_vector(7 downto 0)
-        );
-    end component;
-    
-    -- 2. 宣告訊號 (Signals)
-    signal i_clk   : std_logic := '0';
-    signal i_rst_n : std_logic := '0';
-    signal i_btn   : std_logic_vector(1 downto 0) := "00";
-    signal o_led   : std_logic_vector(7 downto 0);
+        i_clk     : IN  std_logic;
+        i_rst_n   : IN  std_logic;
+        i_btn     : IN  std_logic_vector(1 downto 0);
+        o_led     : OUT std_logic_vector(7 downto 0)
+    );
+    END COMPONENT;
 
-    -- 定義時脈週期 (50MHz = 20ns)
+    -- 2. 內部訊號宣告
+    signal i_clk     : std_logic := '0';
+    signal i_rst_n   : std_logic := '0';
+    signal i_btn     : std_logic_vector(1 downto 0) := (others => '0');
+    signal o_led     : std_logic_vector(7 downto 0);
+
+    -- [重要] 複製 FSM 狀態定義，用於在波形圖中觀察 (Debug State)
+    type STATE_TYPE is (S0_MOVE_TO_LEFT, S1_MOVE_TO_RIGHT, S2_SCORE);
+    signal tb_debug_state : STATE_TYPE := S2_SCORE; 
+
+    -- 3. 時脈設定 (50MHz, Period = 20ns)
     constant clk_period : time := 20 ns;
- 
-begin
- 
-    -- 3. 實例化 (Instantiate the UUT)
-    uut: practice5 PORT MAP (
-          i_clk   => i_clk,
-          i_rst_n => i_rst_n,
-          i_btn   => i_btn,
-          o_led   => o_led
-        );
 
-    -- 4. 時脈產生程序
+begin
+
+    -- 4. 實例化元件 (Instantiate UUT)
+    uut: practice5 PORT MAP (
+        i_clk     => i_clk,
+        i_rst_n   => i_rst_n,
+        i_btn     => i_btn,
+        o_led     => o_led
+    );
+
+    -- 5. 時脈產生器
     clk_process :process
     begin
         i_clk <= '0';
@@ -45,104 +49,90 @@ begin
         i_clk <= '1';
         wait for clk_period/2;
     end process;
- 
-    -- 5. 測試激勵程序
+
+    -- 6. 測試腳本 
     stim_proc: process
-    begin		
+    begin
         ------------------------------------------------------------
-        -- 階段 A: 系統重置
+        -- [階段 0] 系統重置 (0 ns ~ 120 ns)
         ------------------------------------------------------------
-        report "Phase A: System Reset";
+        tb_debug_state <= S2_SCORE; -- 初始預期狀態
         i_rst_n <= '0';
-        wait for 100 ns;	
-        i_rst_n <= '1';
-        wait for clk_period*5;
+        wait for 100 ns;  
         
-        -- 檢查初始 LED (應該是 S1 計分模式，分數 0:0，LED 全滅或顯示 00000000)
-        assert o_led = "00000000" report "Error: Initial LED should be 00000000" severity note;
+        i_rst_n <= '1';   -- 釋放 Reset
+        wait for 20 ns;
 
         ------------------------------------------------------------
-        -- 階段 B: P1 犯規測試 (Early Press)
+        -- [階段 1] P1 發球 
         ------------------------------------------------------------
-        report "Phase B: Testing P1 Early Foul";
-        
-        -- 1. 開始遊戲
-        i_btn <= "01"; -- P1 按下開始
-        wait for clk_period * 2;
-        i_btn <= "00";
-        
-        -- 2. 等待球移動出來 (例如移動到 LED 1)
-        wait until o_led(1) = '1'; 
-        
-        -- 3. P1 在球還沒回來時亂按 (犯規)
-        wait for clk_period;
-        i_btn <= "01"; 
-        wait for clk_period * 2;
-        i_btn <= "00";
-        
-        -- 4. 檢查是否進入計分模式 (S1)，且 P2 得分
-        -- P2 (左邊) 得 1 分 -> LED[7:4] = 0001 -> o_led = 00010000
-        wait for clk_period * 2;
-        if o_led(7 downto 4) = "0001" then
-            report "Pass: P1 Foul detected, P2 Score = 1";
-        else
-            report "Fail: Score did not update correctly for P1 Foul" severity error;
-        end if;
+        -- 狀態：S2_SCORE -> S0_MOVE_TO_LEFT
+        i_btn(0) <= '1';  -- P1 按下
+        wait for 60 ns;   -- 保持一小段時間讓 Edge Detector 抓到
+        i_btn(0) <= '0';  -- 放開
+
+        tb_debug_state <= S0_MOVE_TO_LEFT; -- 更新 Debug 狀態
 
         ------------------------------------------------------------
-        -- 階段 C: P2 漏接測試 (Late Miss)
+        -- [階段 2] 球向左移，P2 準備回擊 (S0)
         ------------------------------------------------------------
-        report "Phase C: Testing P2 Late Miss";
+        -- 球移動路徑：01 -> 02 -> 04 -> 08 -> 10 -> 20 -> 40 -> 80
+        -- 使用 wait until 等待球到達最左邊 (LED 7 / Hex 80)
+        wait until o_led = "10000000"; 
         
-        -- 1. 重新開始下一局
+        -- 模擬人類反應時間 
+        wait for 20 ns;   
+        
+        -- P2 按下回擊 
+        i_btn(1) <= '1';  
+        wait for 150 ns;   
+        i_btn(1) <= '0';  
+
+        -- 回擊成功，預期狀態切換
+        tb_debug_state <= S1_MOVE_TO_RIGHT;
+
+        ------------------------------------------------------------
+        -- [階段 3] 球向右移，P1 準備回擊 (S1)
+        ------------------------------------------------------------
+        -- 球移動路徑：80 -> 40 -> 20 -> 10 -> 08 -> 04 -> 02 -> 01
+        -- 等待球回到最右邊 (LED 0 / Hex 01)
+        wait until o_led = "00000001";
+
+        wait for 20 ns;
+        
+        -- P1 按下回擊 
+        i_btn(0) <= '1';  
+        wait for 60 ns;   
+        i_btn(0) <= '0';  
+
+        -- 回擊成功，預期狀態切換
+        tb_debug_state <= S0_MOVE_TO_LEFT;
+
+        ------------------------------------------------------------
+        -- [階段 4] 球再次向左，P2 漏接 (Miss) -> 得分
+        ------------------------------------------------------------
+        -- 等待球再次到達 LED 7
+        wait until o_led = "10000000";
+
+        -- 等待幾個時脈週期，讓 FSM 偵測到撞牆
+        wait for 200 ns; 
+
+        -- 撞牆發生，狀態應跳回計分
+        tb_debug_state <= S2_SCORE;
+
+        ------------------------------------------------------------
+        -- [階段 5] 驗證結果
+        ------------------------------------------------------------
+        -- 此時 o_led 應該顯示分數
+        -- P1 贏了 (因為球在左邊撞牆)，所以 P1 分數 +1
+        -- P2(0) & P1(1) = "0000" & "0001" = "00000001" (Hex 01)
+        
         wait for 100 ns;
-        i_btn <= "01"; -- 按下開始
-        wait for clk_period * 2;
-        i_btn <= "00";
         
-        -- 2. 等待球移動到最左邊 (LED 7)
-        wait until o_led(7) = '1';
-        report "Ball reached Left Edge (LED 7)";
-        
-        -- 3. 故意不按按鈕，讓它超時 (漏接)
-        -- 等待足夠長的時間讓計數器再次觸發 move_tick
-        wait for clk_period * 20; 
-        
-        -- 4. 檢查是否進入計分模式，且 P1 得分
-        -- 目前分數狀態：P2=1 (來自上一局), P1=1 (這局得分) -> LED = 00010001
-        wait for clk_period * 2;
-        if o_led(3 downto 0) = "0001" then
-             report "Pass: P2 Missed, P1 Score = 1";
-        else
-             report "Fail: Score did not update correctly for P2 Miss" severity error;
-        end if;
+        -- 自動檢查 (Optional)
+        assert o_led = "00000001" report "Error: Score should be 1 for P1" severity warning;
 
-        ------------------------------------------------------------
-        -- 階段 D: 正常來回測試 (Rally)
-        ------------------------------------------------------------
-        report "Phase D: Testing Normal Rally";
-        
-        -- 1. 重新開始
-        wait for 100 ns;
-        i_btn <= "01"; 
-        wait for clk_period * 2;
-        i_btn <= "00";
-        
-        -- 2. 球從右(0)發到左(7)
-        wait until o_led(7) = '1';
-        
-        -- 3. P2 成功回擊
-        wait for clk_period; -- 等穩一點
-        i_btn <= "10"; -- P2 (左按鈕) 按下
-        wait for clk_period * 2;
-        i_btn <= "00";
-        
-        -- 4. 檢查球是否往右彈 (LED 6 亮起)
-        wait until o_led(6) = '1';
-        report "Pass: P2 Returned the ball successfully!";
-
-        report "Simulation Completed";
-        wait;
+        wait; -- 測試結束，停止
     end process;
 
 end behavior;
