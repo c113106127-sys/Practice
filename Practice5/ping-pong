@@ -31,13 +31,12 @@ architecture Behavioral of practice5 is
     signal s_ctrlIncP2     : STD_LOGIC;
     signal s_ctrlClrGame   : STD_LOGIC;
 
-    -- [修改 1] 新增訊號：用來記錄上一個時鐘週期的按鈕狀態
     signal s_prev_btn      : STD_LOGIC_VECTOR(1 downto 0);
 
 begin
 
     ------------------------------------------------------------------
-    -- 1. 除頻計數器 (這是唯一使用 i_clk 的地方)
+    -- 1. 除頻計數器 
     ------------------------------------------------------------------
     p_divCnt : process (i_clk, i_rst_n) 
     begin 
@@ -53,7 +52,7 @@ begin
     s_slowClkBit <= s_divCnt(22); 
 
     ---------------------------------------------------------------------------
-    -- 2. FSM 狀態機 (使用 s_slowClkBit)
+    -- 2. FSM 狀態機 
     ---------------------------------------------------------------------------
     p_fsm_state : process (s_slowClkBit, i_rst_n) 
     begin
@@ -65,10 +64,8 @@ begin
             s_prev_btn     <= "00"; -- 重置舊按鈕紀錄
         elsif rising_edge(s_slowClkBit) then 
 
-            -- [修改 2-1] 每個 Clock 都更新舊按鈕狀態 (這行要在 case 之前)
             s_prev_btn <= i_btn;
 
-            -- 每個 Clock 重置旗標 (產生脈衝)
             s_ctrlIncP1    <= '0';
             s_ctrlIncP2    <= '0';
             s_ctrlClrGame  <= '0';
@@ -85,7 +82,7 @@ begin
                             else s_ctrlIncP1 <= '1'; end if;
                         end if;
                     
-                    -- 球撞牆 (沒按按鈕的情況)
+                    -- 球撞牆 
                     elsif (s_ballPos(7) = '1') then 
                         s_currentState <= S2_SCORE; 
                         if (s_scoreP1 = "1110") then s_ctrlClrGame <= '1'; 
@@ -111,7 +108,6 @@ begin
                     end if;
 
                 when S2_SCORE =>
-                    -- [修改 2-2] 增加判斷：必須「現在按著」且「上一刻沒按」(上緣觸發)
                     if (i_btn(0) = '1' and s_prev_btn(0) = '0') then 
                         s_currentState <= S0_MOVE_TO_LEFT; 
                     elsif (i_btn(1) = '1' and s_prev_btn(1) = '0') then 
@@ -124,7 +120,7 @@ begin
     end process;
 
     ---------------------------------------------------------------------------
-    -- 3. 球的位置控制 (使用 s_slowClkBit)
+    -- 3. 球的位置控制 
     ---------------------------------------------------------------------------
     p_ball : process (s_slowClkBit, i_rst_n)
     begin
@@ -134,7 +130,6 @@ begin
             
             case s_currentState is
                 when S2_SCORE =>
-                    -- [修改 2-3] 這裡也要配合上緣觸發，避免球的位置在按著按鈕時亂跳
                     if (i_btn(0) = '1' and s_prev_btn(0) = '0') then s_ballPos <= "00000001";
                     elsif (i_btn(1) = '1' and s_prev_btn(1) = '0') then s_ballPos <= "10000000";
                     end if;
