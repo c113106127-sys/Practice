@@ -5,10 +5,10 @@ use IEEE.NUMERIC_STD.ALL;
 
 entity practice5 is
     Port ( 
-        i_clk      : in  STD_LOGIC; 
-        i_rst_n    : in  STD_LOGIC; 
-        i_btn      : in  STD_LOGIC_VECTOR(1 downto 0); 
-        o_led      : out STD_LOGIC_VECTOR(7 downto 0)
+        i_clk        : in  STD_LOGIC; 
+        i_rst_n      : in  STD_LOGIC; 
+        i_btn        : in  STD_LOGIC_VECTOR(1 downto 0); 
+        o_led        : out STD_LOGIC_VECTOR(7 downto 0)
     );
 end practice5;
 
@@ -21,245 +21,194 @@ architecture Behavioral of practice5 is
     signal s_ballPos    : STD_LOGIC_VECTOR(7 downto 0); 
     signal s_scoreP1    : STD_LOGIC_VECTOR(3 downto 0); 
     signal s_scoreP2    : STD_LOGIC_VECTOR(3 downto 0); 
-    signal s_ledOut     : STD_LOGIC_VECTOR(7 downto 0);
     
     -- 時序訊號
     signal s_divCnt     : STD_LOGIC_VECTOR(24 downto 0); 
     signal s_slowClkBit : STD_LOGIC; 
-    signal s_bitLast    : STD_LOGIC; 
-    signal s_moveTick   : STD_LOGIC; 
-    
-    signal s_freezeCnt  : integer range 0 to 50000000;
 
-    signal s_ctrlResetBall : STD_LOGIC; -- 1:重置球, 0:不重置
-    signal s_ctrlDirLeft   : STD_LOGIC; -- 1:向左, 0:向右
-    signal s_ctrlP1Serve   : STD_LOGIC; -- 1:P1發球位, 0:P2發球位
+    -- 分數控制旗標
+    signal s_ctrlIncP1     : STD_LOGIC;
+    signal s_ctrlIncP2     : STD_LOGIC;
+    signal s_ctrlClrGame   : STD_LOGIC;
+
+    -- [修改 1] 新增訊號：用來記錄上一個時鐘週期的按鈕狀態
+    signal s_prev_btn      : STD_LOGIC_VECTOR(1 downto 0);
 
 begin
 
     ------------------------------------------------------------------
-    -- 1. 除頻計數器
+    -- 1. 除頻計數器 (這是唯一使用 i_clk 的地方)
     ------------------------------------------------------------------
     p_divCnt : process (i_clk, i_rst_n) 
     begin 
-        if (i_rst_n = '0') then
-            s_divCnt    <= (others => '0'); 
-        elsif rising_edge(i_clk) then
-            s_divCnt    <= s_divCnt + 1;
+        if (i_rst_n = '0') then 
+            s_divCnt <= (others => '0');
+        elsif rising_edge(i_clk) then 
+            s_divCnt <= s_divCnt + 1;
         end if;
     end process;
 
-    s_slowClkBit <= s_divCnt(23); 
-
-    ------------------------------------------------------------------
-    -- 2. 邊緣偵測 (Tick)
-    ------------------------------------------------------------------
-    p_moveTick : process (i_clk, i_rst_n)
-    begin
-        if (i_rst_n = '0') then
-            s_bitLast   <= '0';
-            s_moveTick  <= '0';
-        elsif rising_edge(i_clk) then
-            s_bitLast   <= s_slowClkBit;
-            if ((s_slowClkBit = '1') and (s_bitLast = '0')) then
-                s_moveTick <= '1';
-            else
-                s_moveTick <= '0';
-            end if;
-        end if;
-    end process;
+    -- [重要設定] 燒錄時請確認 Bit 位數
+    -- 模擬用 Bit 2，燒錄用 Bit 22 或 24
+    s_slowClkBit <= s_divCnt(22); 
 
     ---------------------------------------------------------------------------
-    -- 3. FSM 
+    -- 2. FSM 狀態機 (使用 s_slowClkBit)
     ---------------------------------------------------------------------------
-    p_fsm : process (i_clk, i_rst_n)
+    p_fsm_state : process (s_slowClkBit, i_rst_n) 
     begin
-        if (i_rst_n = '0') then
-            s_currentState  <= S2_SCORE;
-            s_freezeCnt     <= 0;
-            -- 初始化控制訊號
-            s_ctrlResetBall <= '1'; 
-            s_ctrlDirLeft   <= '0';
-            s_ctrlP1Serve   <= '1';
-            
-        elsif rising_edge(i_clk) then
-            -- 預設值 (Default assignments)
-            s_ctrlResetBall <= '0'; -- 平常球不重置，正常移動
+        if i_rst_n = '0' then
+            s_currentState <= S2_SCORE;
+            s_ctrlIncP1    <= '0';
+            s_ctrlIncP2    <= '0';
+            s_ctrlClrGame  <= '0';
+            s_prev_btn     <= "00"; -- 重置舊按鈕紀錄
+        elsif rising_edge(s_slowClkBit) then 
 
-            case s_currentState is
-                
-                -- S0: 球向左
+            -- [修改 2-1] 每個 Clock 都更新舊按鈕狀態 (這行要在 case 之前)
+            s_prev_btn <= i_btn;
+
+            -- 每個 Clock 重置旗標 (產生脈衝)
+            s_ctrlIncP1    <= '0';
+            s_ctrlIncP2    <= '0';
+            s_ctrlClrGame  <= '0';
+
+            case s_currentState is            
                 when S0_MOVE_TO_LEFT =>
-                    s_freezeCnt   <= 0;
-                    s_ctrlDirLeft <= '1'; --  球向左跑
-                    
+                    -- P2 按下按鈕
                     if (i_btn(1) = '1') then 
-                        if (s_ballPos(7) = '1') then
-                            s_currentState <= S1_MOVE_TO_RIGHT; 
-                        else
-                            s_currentState  <= S2_SCORE;
-                            s_ctrlResetBall <= '1'; -- 進 S2 前先重置球
-                        end if;
-                    elsif (s_moveTick = '1') then   
                         if (s_ballPos(7) = '1') then 
-                            s_currentState  <= S2_SCORE;
-                            s_ctrlResetBall <= '1'; 
+                            s_currentState <= S1_MOVE_TO_RIGHT; -- 成功回擊
+                        else 
+                            s_currentState <= S2_SCORE; -- 太早按，輸球
+                            if (s_scoreP1 = "1110") then s_ctrlClrGame <= '1'; 
+                            else s_ctrlIncP1 <= '1'; end if;
                         end if;
+                    
+                    -- 球撞牆 (沒按按鈕的情況)
+                    elsif (s_ballPos(7) = '1') then 
+                        s_currentState <= S2_SCORE; 
+                        if (s_scoreP1 = "1110") then s_ctrlClrGame <= '1'; 
+                        else s_ctrlIncP1 <= '1'; end if;
                     end if;
 
-                -- S1: 球向右
                 when S1_MOVE_TO_RIGHT =>
-                    s_freezeCnt   <= 0; 
-                    s_ctrlDirLeft <= '0';  球向右跑
-
+                    -- P1 按下按鈕
                     if (i_btn(0) = '1') then 
-                        if (s_ballPos(0) = '1') then
-                            s_currentState <= S0_MOVE_TO_LEFT;  
-                        else
-                            s_currentState  <= S2_SCORE;
-                            s_ctrlResetBall <= '1'; 
+                        if (s_ballPos(0) = '1') then 
+                            s_currentState <= S0_MOVE_TO_LEFT; -- 成功回擊
+                        else 
+                            s_currentState <= S2_SCORE; -- 太早按，輸球
+                            if (s_scoreP2 = "1110") then s_ctrlClrGame <= '1';
+                            else s_ctrlIncP2 <= '1'; end if;
                         end if;
-                    elsif (s_moveTick = '1') then   
-                        if (s_ballPos(0) = '1') then
-                            s_currentState  <= S2_SCORE;
-                            s_ctrlResetBall <= '1'; 
-                        end if;
+                    
+                    -- 球撞牆
+                    elsif (s_ballPos(0) = '1') then 
+                        s_currentState <= S2_SCORE; 
+                        if (s_scoreP2 = "1110") then s_ctrlClrGame <= '1';
+                        else s_ctrlIncP2 <= '1'; end if;
                     end if;
 
-                -- S2: 計分/發球
                 when S2_SCORE =>
-                    s_ctrlResetBall <= '1'; -- 在 S2 期間球保持重置狀態
-
-                    if (s_freezeCnt < 50000000) then
-                        s_freezeCnt <= s_freezeCnt + 1;
-                    else
-                        if (i_btn(0) = '1') then
-                            s_currentState <= S0_MOVE_TO_LEFT;
-                            s_ctrlP1Serve  <= '1'; -- P1 發球
-                        elsif (i_btn(1) = '1') then
-                            s_currentState <= S1_MOVE_TO_RIGHT;
-                            s_ctrlP1Serve  <= '0'; -- P2 發球
-                        end if;
+                    -- [修改 2-2] 增加判斷：必須「現在按著」且「上一刻沒按」(上緣觸發)
+                    if (i_btn(0) = '1' and s_prev_btn(0) = '0') then 
+                        s_currentState <= S0_MOVE_TO_LEFT; 
+                    elsif (i_btn(1) = '1' and s_prev_btn(1) = '0') then 
+                        s_currentState <= S1_MOVE_TO_RIGHT; 
                     end if;
 
-                when others =>
-                    s_currentState <= S2_SCORE;
+                when others => s_currentState <= S2_SCORE;
             end case;
         end if;
     end process;
 
     ---------------------------------------------------------------------------
-    -- 4. 球的位置控制 
+    -- 3. 球的位置控制 (使用 s_slowClkBit)
     ---------------------------------------------------------------------------
-    p_ball : process (i_clk, i_rst_n)
+    p_ball : process (s_slowClkBit, i_rst_n)
     begin
-        if (i_rst_n = '0') then
+        if (i_rst_n = '0') then 
             s_ballPos <= "00000001";
-        elsif rising_edge(i_clk) then
-
-            if (s_ctrlResetBall = '1') then
-                if (s_ctrlP1Serve = '1') then
-                    s_ballPos <= "00000001"; -- 右邊發球
-                else
-                    s_ballPos <= "10000000"; -- 左邊發球
-                end if;
-
-            elsif (s_moveTick = '1') then
-                if (s_ctrlDirLeft = '1') then
-                    s_ballPos <= (s_ballPos(6 downto 0) & '0'); -- 左移
-                else
-                    s_ballPos <= ('0' & s_ballPos(7 downto 1)); -- 右移
-                end if;
-            end if;
+        elsif rising_edge(s_slowClkBit) then 
             
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- 5. P1 分數控制 
-    ---------------------------------------------------------------------------
-    p_scoreP1 : process (i_clk, i_rst_n)
-    begin
-        if (i_rst_n = '0') then
-            s_scoreP1 <= (others => '0');
-        elsif rising_edge(i_clk) then
-            
-            if (s_currentState = S0_MOVE_TO_LEFT) then
-                if (((i_btn(1) = '1') and (s_ballPos(7) = '0')) or 
-                    ((s_moveTick = '1') and (s_ballPos(7) = '1'))) then
-                    
-                    if (s_scoreP1 = "1110") then 
-                        s_scoreP1 <= (others => '0');
-                    else
-                        s_scoreP1 <= s_scoreP1 + 1;
-                    end if;
-                end if;
-            
-            elsif (s_currentState = S1_MOVE_TO_RIGHT) then
-                if (((i_btn(0) = '1') and (s_ballPos(0) = '0')) or 
-                    ((s_moveTick = '1') and (s_ballPos(0) = '1'))) then
-                    
-                    if (s_scoreP2 = "1110") then 
-                        s_scoreP1 <= (others => '0');
-                    end if;
-                end if;
-            end if;
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- 6. P2 分數控制
-    ---------------------------------------------------------------------------
-    p_scoreP2 : process (i_clk, i_rst_n)
-    begin
-        if (i_rst_n = '0') then
-            s_scoreP2 <= (others => '0');
-        elsif rising_edge(i_clk) then
-            
-            if (s_currentState = S1_MOVE_TO_RIGHT) then
-                if (((i_btn(0) = '1') and (s_ballPos(0) = '0')) or 
-                    ((s_moveTick = '1') and (s_ballPos(0) = '1'))) then
-                    
-                    if (s_scoreP2 = "1110") then 
-                        s_scoreP2 <= (others => '0');
-                    else
-                        s_scoreP2 <= s_scoreP2 + 1;
-                    end if;
-                end if;
-
-            elsif (s_currentState = S0_MOVE_TO_LEFT) then
-                if (((i_btn(1) = '1') and (s_ballPos(7) = '0')) or 
-                    ((s_moveTick = '1') and (s_ballPos(7) = '1'))) then
-                    
-                    if (s_scoreP1 = "1110") then 
-                        s_scoreP2 <= (others => '0');
-                    end if;
-                end if;
-            end if;
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- 7. LED 輸出
-    ---------------------------------------------------------------------------
-    p_led : process (i_clk, i_rst_n)
-    begin
-        if (i_rst_n = '0') then
-            s_ledOut    <= (others => '0');
-        elsif rising_edge(i_clk) then
             case s_currentState is
-                when S0_MOVE_TO_LEFT =>
-                    s_ledOut <= s_ballPos;
-                when S1_MOVE_TO_RIGHT =>
-                    s_ledOut <= s_ballPos;
                 when S2_SCORE =>
-                    s_ledOut <= (s_scoreP2 & s_scoreP1);
+                    -- [修改 2-3] 這裡也要配合上緣觸發，避免球的位置在按著按鈕時亂跳
+                    if (i_btn(0) = '1' and s_prev_btn(0) = '0') then s_ballPos <= "00000001";
+                    elsif (i_btn(1) = '1' and s_prev_btn(1) = '0') then s_ballPos <= "10000000";
+                    end if;
+
+                when S0_MOVE_TO_LEFT =>
+                    if (s_ballPos(7) = '1' and i_btn(1) = '1') then
+                        s_ballPos <= s_ballPos; 
+                    else
+                        s_ballPos(7 downto 1) <= s_ballPos(6 downto 0);
+                        s_ballPos(0) <= '0';
+                    end if;
+
+                when S1_MOVE_TO_RIGHT =>
+                    if (s_ballPos(0) = '1' and i_btn(0) = '1') then
+                        s_ballPos <= s_ballPos;
+                    else
+                        s_ballPos(6 downto 0) <= s_ballPos(7 downto 1);
+                        s_ballPos(7) <= '0';
+                    end if;
+
                 when others =>
-                    s_ledOut <= (others => '0');
+                    s_ballPos <= "00000001";
             end case;
         end if;
     end process;
 
-    o_led <= s_ledOut;
+    ---------------------------------------------------------------------------
+    -- 4. P1 分數計數器 
+    ---------------------------------------------------------------------------
+    p_scoreP1 : process (s_slowClkBit, i_rst_n)
+    begin
+        if (i_rst_n = '0') then 
+            s_scoreP1 <= (others => '0');
+        elsif rising_edge(s_slowClkBit) then
+            if (s_ctrlClrGame = '1') then 
+                s_scoreP1 <= (others => '0');
+            elsif (s_ctrlIncP1 = '1') then 
+                s_scoreP1 <= s_scoreP1 + 1;
+            end if;
+        end if;
+    end process;
+
+    ---------------------------------------------------------------------------
+    -- 5. P2 分數計數器
+    ---------------------------------------------------------------------------
+    p_scoreP2 : process (s_slowClkBit, i_rst_n)
+    begin
+        if (i_rst_n = '0') then 
+            s_scoreP2 <= (others => '0');
+        elsif rising_edge(s_slowClkBit) then
+            if (s_ctrlClrGame = '1') then 
+                s_scoreP2 <= (others => '0');
+            elsif (s_ctrlIncP2 = '1') then 
+                s_scoreP2 <= s_scoreP2 + 1;
+            end if;
+        end if;
+    end process;
+
+    ---------------------------------------------------------------------------
+    -- 6. LED 輸出
+    ---------------------------------------------------------------------------
+    p_led : process (s_slowClkBit, i_rst_n)
+    begin
+        if (i_rst_n = '0') then
+            o_led <= (others => '0');
+        elsif rising_edge(s_slowClkBit) then
+            case s_currentState is
+                when S2_SCORE => 
+                    o_led(7 downto 4) <= s_scoreP2;
+                    o_led(3 downto 0) <= s_scoreP1;
+                when others => 
+                    o_led <= s_ballPos;
+            end case;
+        end if;
+    end process;
 
 end Behavioral;
