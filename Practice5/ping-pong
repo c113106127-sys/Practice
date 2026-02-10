@@ -3,205 +3,161 @@ use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.STD_LOGIC_UNSIGNED.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
-entity practice5 is
-    Port ( 
-        i_clk        : in  STD_LOGIC; 
-        i_rst_n      : in  STD_LOGIC; 
-        i_btn        : in  STD_LOGIC_VECTOR(1 downto 0); 
-        o_led        : out STD_LOGIC_VECTOR(7 downto 0)
-    );
-end practice5;
+entity practice5 is port(
+
+	i_clk: in std_logic;
+	i_rst: in std_logic;
+	i_btn1: in std_logic;
+	i_btn2: in std_logic;
+	o_led:	out std_logic_vector(7 downto 0)
+	);
+end practice5 ;
 
 architecture Behavioral of practice5 is
-
-    type STATE_TYPE is (S0_MOVE_TO_LEFT, S1_MOVE_TO_RIGHT, S2_SCORE);
-    signal s_currentState : STATE_TYPE;
-
-    -- 資料訊號
-    signal s_ballPos    : STD_LOGIC_VECTOR(7 downto 0); 
-    signal s_scoreP1    : STD_LOGIC_VECTOR(3 downto 0); 
-    signal s_scoreP2    : STD_LOGIC_VECTOR(3 downto 0); 
+	type state_type is (s0, s1, s2);
+	signal cstate: state_type;
     
-    -- 時序訊號
-    signal s_divCnt     : STD_LOGIC_VECTOR(24 downto 0); 
-    signal s_slowClkBit : STD_LOGIC; 
+	signal ballPos : std_logic_vector(9 downto 0);
+	signal slowClk : std_logic;
+	signal divCnt : std_logic_vector(35 downto 0);
+	
+	signal p1_score : std_logic_vector(3 downto 0);
+	signal p2_score : std_logic_vector(3 downto 0);
+	
+	signal p1_core : std_logic;
+	signal p2_core : std_logic;
+	signal score : std_logic;
 
-    -- 分數控制旗標
-    signal s_ctrlIncP1     : STD_LOGIC;
-    signal s_ctrlIncP2     : STD_LOGIC;
-    signal s_ctrlClrGame   : STD_LOGIC;
 
-    signal s_prev_btn      : STD_LOGIC_VECTOR(1 downto 0);
-
-begin
-
-    ------------------------------------------------------------------
-    -- 1. 除頻計數器 
-    ------------------------------------------------------------------
-    p_divCnt : process (i_clk, i_rst_n) 
-    begin 
-        if (i_rst_n = '0') then 
-            s_divCnt <= (others => '0');
+begin	
+	
+div: process(i_clk, i_rst)
+	begin
+	if (i_rst = '0') then 
+            divCnt <= (others => '0');
         elsif rising_edge(i_clk) then 
-            s_divCnt <= s_divCnt + 1;
+            divCnt <= divCnt + 1;
         end if;
     end process;
 
-    s_slowClkBit <= s_divCnt(22); 
-
-    ---------------------------------------------------------------------------
-    -- 2. FSM 狀態機 
-    ---------------------------------------------------------------------------
-    p_fsm_state : process (s_slowClkBit, i_rst_n) 
-    begin
-        if i_rst_n = '0' then
-            s_currentState <= S2_SCORE;
-            s_ctrlIncP1    <= '0';
-            s_ctrlIncP2    <= '0';
-            s_ctrlClrGame  <= '0';
-            s_prev_btn     <= "00"; -- 重置舊按鈕紀錄
-        elsif rising_edge(s_slowClkBit) then 
-
-            s_prev_btn <= i_btn;
-
-            s_ctrlIncP1    <= '0';
-            s_ctrlIncP2    <= '0';
-            s_ctrlClrGame  <= '0';
-
-            case s_currentState is            
-                when S0_MOVE_TO_LEFT =>
-                    -- P2 按下按鈕
-                    if (i_btn(1) = '1') then 
-                        if (s_ballPos(7) = '1') then 
-                            s_currentState <= S1_MOVE_TO_RIGHT; -- 成功回擊
-                        else 
-                            s_currentState <= S2_SCORE; -- 太早按，輸球
-                            if (s_scoreP1 = "1110") then s_ctrlClrGame <= '1'; 
-                            else s_ctrlIncP1 <= '1'; end if;
-                        end if;
+    slowClk <= divCnt(2);
+fsm: process(i_clk, i_rst)
+	 begin
+		if  i_rst = '0' then
+			cstate <= s0;
+		elsif rising_edge(i_clk) then
+		  p1_core<= '0';
+		   p2_core<= '0';
+			case cstate is
+				when s0 =>
+					if i_btn1 = '1' and ballPos = "0000000010" then
+						cstate <= s1;
+						score <= '0';
+					elsif i_btn2 = '1' and ballPos = "0100000000" then
+						cstate <= s2;
+						score <= '0';
+					elsif p1_score = "1110" then
+						score <= '1';
+					elsif p2_score = "1110" then
+						score <= '1';
+					end if;
+					
+				when s1 =>--左移
+					if ballPos = "0100000000" and i_btn2 = '1' then
+					cstate <= s2;
+					elsif ballPos = "1000000000"  then
+					cstate <= s0;--失敗得分
+					p1_core <= '1';	
+							
                     
-                    -- 球撞牆 
-                    elsif (s_ballPos(7) = '1') then 
-                        s_currentState <= S2_SCORE; 
-                        if (s_scoreP1 = "1110") then s_ctrlClrGame <= '1'; 
-                        else s_ctrlIncP1 <= '1'; end if;
-                    end if;
+					elsif ballPos /= "0100000000" and i_btn2 = '1' then
+					cstate <= s0;
+					p1_core <= '1';
 
-                when S1_MOVE_TO_RIGHT =>
-                    -- P1 按下按鈕
-                    if (i_btn(0) = '1') then 
-                        if (s_ballPos(0) = '1') then 
-                            s_currentState <= S0_MOVE_TO_LEFT; -- 成功回擊
-                        else 
-                            s_currentState <= S2_SCORE; -- 太早按，輸球
-                            if (s_scoreP2 = "1110") then s_ctrlClrGame <= '1';
-                            else s_ctrlIncP2 <= '1'; end if;
-                        end if;
-                    
-                    -- 球撞牆
-                    elsif (s_ballPos(0) = '1') then 
-                        s_currentState <= S2_SCORE; 
-                        if (s_scoreP2 = "1110") then s_ctrlClrGame <= '1';
-                        else s_ctrlIncP2 <= '1'; end if;
-                    end if;
+					else
+					cstate <= s1;
+					end if;
+				when s2 =>--右移
+					if ballPos = "0000000010" and i_btn1 = '1' then
+					cstate <= s1;
+					elsif ballPos = "0000000001"  then
+					cstate <= s0;
+					p2_core <= '1';
 
-                when S2_SCORE =>
-                    if (i_btn(0) = '1' and s_prev_btn(0) = '0') then 
-                        s_currentState <= S0_MOVE_TO_LEFT; 
-                    elsif (i_btn(1) = '1' and s_prev_btn(1) = '0') then 
-                        s_currentState <= S1_MOVE_TO_RIGHT; 
-                    end if;
+					elsif ballPos /= "0000000010" and i_btn1 = '1' then
+					cstate <= s0;
+					p2_core <= '1';
 
-                when others => s_currentState <= S2_SCORE;
-            end case;
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- 3. 球的位置控制 
-    ---------------------------------------------------------------------------
-    p_ball : process (s_slowClkBit, i_rst_n)
-    begin
-        if (i_rst_n = '0') then 
-            s_ballPos <= "00000001";
-        elsif rising_edge(s_slowClkBit) then 
-            
-            case s_currentState is
-                when S2_SCORE =>
-                    if (i_btn(0) = '1' and s_prev_btn(0) = '0') then s_ballPos <= "00000001";
-                    elsif (i_btn(1) = '1' and s_prev_btn(1) = '0') then s_ballPos <= "10000000";
-                    end if;
-
-                when S0_MOVE_TO_LEFT =>
-                    if (s_ballPos(7) = '1' and i_btn(1) = '1') then
-                        s_ballPos <= s_ballPos; 
-                    else
-                        s_ballPos(7 downto 1) <= s_ballPos(6 downto 0);
-                        s_ballPos(0) <= '0';
-                    end if;
-
-                when S1_MOVE_TO_RIGHT =>
-                    if (s_ballPos(0) = '1' and i_btn(0) = '1') then
-                        s_ballPos <= s_ballPos;
-                    else
-                        s_ballPos(6 downto 0) <= s_ballPos(7 downto 1);
-                        s_ballPos(7) <= '0';
-                    end if;
-
-                when others =>
-                    s_ballPos <= "00000001";
-            end case;
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- 4. P1 分數計數器 
-    ---------------------------------------------------------------------------
-    p_scoreP1 : process (s_slowClkBit, i_rst_n)
-    begin
-        if (i_rst_n = '0') then 
-            s_scoreP1 <= (others => '0');
-        elsif rising_edge(s_slowClkBit) then
-            if (s_ctrlClrGame = '1') then 
-                s_scoreP1 <= (others => '0');
-            elsif (s_ctrlIncP1 = '1') then 
-                s_scoreP1 <= s_scoreP1 + 1;
-            end if;
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- 5. P2 分數計數器
-    ---------------------------------------------------------------------------
-    p_scoreP2 : process (s_slowClkBit, i_rst_n)
-    begin
-        if (i_rst_n = '0') then 
-            s_scoreP2 <= (others => '0');
-        elsif rising_edge(s_slowClkBit) then
-            if (s_ctrlClrGame = '1') then 
-                s_scoreP2 <= (others => '0');
-            elsif (s_ctrlIncP2 = '1') then 
-                s_scoreP2 <= s_scoreP2 + 1;
-            end if;
-        end if;
-    end process;
-
-    ---------------------------------------------------------------------------
-    -- 6. LED 輸出
-    ---------------------------------------------------------------------------
-    p_led : process (s_slowClkBit, i_rst_n)
-    begin
-        if (i_rst_n = '0') then
-            o_led <= (others => '0');
-        elsif rising_edge(s_slowClkBit) then
-            case s_currentState is
-                when S2_SCORE => 
-                    o_led(7 downto 4) <= s_scoreP2;
-                    o_led(3 downto 0) <= s_scoreP1;
+					else
+					cstate <= s2;
+					end if;
+				when others=>
+					cstate <= cstate;
+			end case;
+		end if;
+	end process;
+	
+bballPos: process(slowClk, i_rst)
+	begin
+		if i_rst = '0' then
+			ballPos <="0100000000";
+		elsif rising_edge(slowClk) then
+			case cstate is
+				when s0 =>
+					if i_btn1 = '1' then 
+						ballPos <= "0000000010";
+					elsif i_btn2 = '1' then
+						ballPos <= "0100000000";
+					end if;
+				when s1 =>--左移
+					ballPos <= ballPos(8 downto 0) & '0';
+				when s2 =>--又移
+				  ballPos <= '0' & ballPos(9 downto 1);
+				when others=>
+					null;
+			end case;
+		end if;
+	end process;
+		
+pp1_score: process(i_clk, i_rst)
+	begin
+		if i_rst = '0' then
+			p1_score <= (others => '0');
+		elsif rising_edge(i_clk) then
+			if p1_core = '1' then
+				p1_score <= p1_score + 1;
+			elsif score = '1' then
+				p1_score <= "0000";
+			    
+			end if;
+		end if;
+	end process;
+	
+pp2_score: process(i_clk, i_rst)
+	begin
+		if i_rst = '0' then
+			p2_score <= (others => '0');
+		elsif rising_edge(i_clk) then
+			if p2_core = '1' then
+				p2_score <= p2_score + 1;
+			elsif score = '1' then
+				p2_score <= "0000";
+			end if;
+		end if;
+	end process;
+		
+led: process(i_clk, i_rst)
+	begin
+		if i_rst = '0' then
+			o_led <= (others => '0');
+		elsif rising_edge(i_clk) then	
+			case cstate is
+				when s0 =>
+					o_led(7 downto 4) <= p2_score;
+					o_led(3 downto 0) <= p1_score;
                 when others => 
-                    o_led <= s_ballPos;
+                    o_led <= ballPos(8 downto 1);
             end case;
         end if;
     end process;
-
 end Behavioral;
