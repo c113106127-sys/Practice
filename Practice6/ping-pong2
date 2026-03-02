@@ -1,0 +1,214 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity practice6 is port(
+
+	i_clk: in std_logic;
+	i_rst: in std_logic;
+	i_btn1: in std_logic;
+	i_btn2: in std_logic;
+	o_led:	out std_logic_vector(7 downto 0)
+	);
+end practice6 ;
+
+architecture Behavioral of practice6 is
+	type state_type is (s0, s1, s2);
+	signal cstate: state_type;
+    
+	signal ballPos : std_logic_vector(9 downto 0);
+	signal slowClk : std_logic;
+	signal divCnt : std_logic_vector(35 downto 0);
+	
+	signal p1_score : std_logic_vector(3 downto 0);
+	signal p2_score : std_logic_vector(3 downto 0);
+	
+	signal p1_core : std_logic;
+	signal p2_core : std_logic;
+	signal score : std_logic;
+-- LFSR 亂數產生器相關訊號 (8 bits)
+    -- 注意：初始值 (Seed) 絕對不可以是全 0
+    signal lfsr_reg : std_logic_vector(7 downto 0) := "10101010"; 
+    signal random_speed : integer range 0 to 7; -- 擷取出來的亂數速度 (0最快，7最慢)
+
+    -- 變速球控制訊號
+    signal move_cnt : integer range 0 to 15 := 0; -- 目前的等待計數
+    signal move_max : integer range 0 to 15 := 0; -- 目標等待時間 (由亂數決定)
+
+begin	
+	
+div: process(i_clk, i_rst)
+	begin
+	if (i_rst = '0') then 
+            divCnt <= (others => '0');
+        elsif rising_edge(i_clk) then 
+            divCnt <= divCnt + 1;
+        end if;
+    end process;
+
+    slowClk <= divCnt(2);
+fsm: process(i_clk, i_rst)
+	 begin
+		if  i_rst = '0' then
+			cstate <= s0;
+		elsif rising_edge(i_clk) then
+		  p1_core<= '0';
+		   p2_core<= '0';
+			case cstate is
+				when s0 =>
+					if i_btn1 = '1' and ballPos = "0000000010" then
+						cstate <= s1;
+						score <= '0';
+					elsif i_btn2 = '1' and ballPos = "0100000000" then
+						cstate <= s2;
+						score <= '0';
+					elsif p1_score = "1110" then
+						score <= '1';
+					elsif p2_score = "1110" then
+						score <= '1';
+					end if;
+					
+				when s1 =>--左移
+					if ballPos = "0100000000" and i_btn2 = '1' then
+					cstate <= s2;
+					elsif ballPos = "1000000000"  then
+					cstate <= s0;--失敗得分
+					p1_core <= '1';	
+							
+                    
+					elsif ballPos /= "0100000000" and i_btn2 = '1' then
+					cstate <= s0;
+					p1_core <= '1';
+
+					else
+					cstate <= s1;
+					end if;
+				when s2 =>--右移
+					if ballPos = "0000000010" and i_btn1 = '1' then
+					cstate <= s1;
+					elsif ballPos = "0000000001"  then
+					cstate <= s0;
+					p2_core <= '1';
+
+					elsif ballPos /= "0000000010" and i_btn1 = '1' then
+					cstate <= s0;
+					p2_core <= '1';
+
+					else
+					cstate <= s2;
+					end if;
+				when others=>
+					cstate <= cstate;
+			end case;
+		end if;
+	end process;
+
+    p_lfsr: process(i_clk, i_rst)
+        variable v_feedback : std_logic;
+    begin
+        if i_rst = '0' then
+            lfsr_reg <= "10101010"; -- 重置時給予非零種子碼
+        elsif rising_edge(i_clk) then
+            -- 8-bit LFSR 多項式: x^8 + x^6 + x^5 + x^4 + 1
+            v_feedback := lfsr_reg(7) xor lfsr_reg(5) xor lfsr_reg(4) xor lfsr_reg(3);
+            lfsr_reg <= lfsr_reg(6 downto 0) & v_feedback;
+        end if;
+    end process;
+
+    -- 從 LFSR 取出較低的 3 個 bits，轉換為整數 (0~7) 作為隨機延遲時間
+    random_speed <= to_integer(unsigned(lfsr_reg(2 downto 0)));
+    
+    
+bballPos: process(slowClk, i_rst)
+    begin
+        if i_rst = '0' then
+            ballPos <= "0100000000";
+            move_cnt <= 0;
+            move_max <= 0;
+        elsif rising_edge(slowClk) then
+            case cstate is
+                when s0 =>
+                    move_cnt <= 0;
+                    move_max <= random_speed; -- 準備發球時，先抽一次速度
+                    
+                    if i_btn1 = '1' then 
+                        ballPos <= "0000000010";
+                    elsif i_btn2 = '1' then
+                        ballPos <= "0100000000";
+                    end if;
+                    
+                when s1 => -- 左移
+                    if move_cnt >= move_max then
+                        -- 時間到，移動球
+                        ballPos <= ballPos(8 downto 0) & '0';    
+                        -- 【關鍵】移動完立刻重新抽籤，決定下一格的速度
+                        move_cnt <= 0;
+                        move_max <= random_speed; 
+                    else
+                        -- 時間未到，原地等待，計數器 +1
+                        move_cnt <= move_cnt + 1;
+                    end if;
+                    
+                when s2 => -- 右移
+                    if move_cnt >= move_max then
+                        -- 時間到，移動球
+                        ballPos <= '0' & ballPos(9 downto 1);
+                        
+                        -- 【關鍵】移動完立刻重新抽籤，決定下一格的速度
+                        move_cnt <= 0;
+                        move_max <= random_speed; 
+                    else
+                        -- 時間未到，原地等待，計數器 +1
+                        move_cnt <= move_cnt + 1;
+                    end if;
+                    
+                when others =>
+                    null;
+            end case;
+        end if;
+    end process;
+    
+		
+pp1_score: process(i_clk, i_rst)
+	begin
+		if i_rst = '0' then
+			p1_score <= (others => '0');
+		elsif rising_edge(i_clk) then
+			if p1_core = '1' then
+				p1_score <= p1_score + 1;
+			elsif score = '1' then
+				p1_score <= "0000";
+			    
+			end if;
+		end if;
+	end process;
+	
+pp2_score: process(i_clk, i_rst)
+	begin
+		if i_rst = '0' then
+			p2_score <= (others => '0');
+		elsif rising_edge(i_clk) then
+			if p2_core = '1' then
+				p2_score <= p2_score + 1;
+			elsif score = '1' then
+				p2_score <= "0000";
+			end if;
+		end if;
+	end process;
+		
+led: process(i_clk, i_rst)
+	begin
+		if i_rst = '0' then
+			o_led <= (others => '0');
+		elsif rising_edge(i_clk) then	
+			case cstate is
+				when s0 =>
+					o_led(7 downto 4) <= p2_score;
+					o_led(3 downto 0) <= p1_score;
+                when others => 
+                    o_led <= ballPos(8 downto 1);
+            end case;
+        end if;
+    end process;
+end Behavioral;
