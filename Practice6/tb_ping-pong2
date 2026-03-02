@@ -1,0 +1,96 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity tb_practice6 is
+-- 測試程式不需要對外的 port
+end tb_practice6;
+
+architecture behavior of tb_practice6 is
+
+    -- 宣告待測元件 (DUT)
+    component practice6
+    port(
+         i_clk  : in  std_logic;
+         i_rst  : in  std_logic;
+         i_btn1 : in  std_logic;
+         i_btn2 : in  std_logic;
+         o_led  : out std_logic_vector(7 downto 0)
+        );
+    end component;
+
+    -- 宣告模擬用訊號
+    signal i_clk  : std_logic := '0';
+    signal i_rst  : std_logic := '0';
+    signal i_btn1 : std_logic := '0';
+    signal i_btn2 : std_logic := '0';
+    signal o_led  : std_logic_vector(7 downto 0);
+
+    -- 設定主時脈週期 (100 MHz = 10 ns)
+    constant clk_period : time := 10 ns;
+
+begin
+
+    -- 實體化待測元件
+    uut: practice6 PORT MAP (
+          i_clk  => i_clk,
+          i_rst  => i_rst,
+          i_btn1 => i_btn1,
+          i_btn2 => i_btn2,
+          o_led  => o_led
+        );
+
+    -- 產生主時脈
+    clk_process :process
+    begin
+        i_clk <= '0';
+        wait for clk_period/2;
+        i_clk <= '1';
+        wait for clk_period/2;
+    end process;
+
+    -- 測試流程
+    stim_proc: process
+    begin
+        -- 1. 系統重置 (Reset)
+        i_rst <= '0';
+        i_btn1 <= '0';
+        i_btn2 <= '0';
+        wait for 50 ns;
+        
+        i_rst <= '1'; -- 進入狀態 s0
+        wait for 50 ns;
+
+        -- 2. Player 2 發球
+        i_btn2 <= '1';
+        wait for 100 ns;
+        i_btn2 <= '0';
+
+        -- 【重點】等待球飛越球場
+        -- 因為 random_speed 最大是 7，每步最多等 8 個 slowClk 週期。
+        -- slowClk 是除頻 4 次方 (8 個 i_clk = 80ns)。
+        -- 最慢情況下，走 7 步大約需要 7 * 8 * 80ns = 4480 ns。
+        -- 我們直接等 5000 ns，確保 Player 1 一定會漏接。
+        wait for 5000 ns; 
+
+        -- 觀察點 A：這時候應該會回到 s0 狀態，且 Player 1 得 1 分。
+        -- o_led 應該會顯示 "00000001"
+        wait for 200 ns;
+
+        -- 3. Player 1 發球
+        i_btn1 <= '1';
+        wait for 100 ns;
+        i_btn1 <= '0';
+
+        -- 再次等待 5000 ns，這次讓 Player 2 漏接
+        wait for 5000 ns;
+
+        -- 觀察點 B：這時候應該再次回到 s0 狀態，雙方各得 1 分。
+        -- o_led 應該會顯示 "00010001" (p2_score & p1_score)
+        wait for 200 ns;
+        
+        -- 結束模擬
+        wait;
+    end process;
+
+end behavior;
