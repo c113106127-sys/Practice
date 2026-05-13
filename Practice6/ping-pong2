@@ -14,7 +14,7 @@ entity practice6 is port(
 end practice6 ;
 
 architecture Behavioral of practice6 is
-	type state_type is (s0, s1, s2);
+	type state_type is (s0, s1, s2, s_wait);
 	signal cstate: state_type;
     
 	signal ballPos : std_logic_vector(9 downto 0);
@@ -47,7 +47,7 @@ div: process(i_clk, i_rst)
         end if;
     end process;
 
-    slowClk <= divCnt(2);
+    slowClk <= divCnt(23);
 fsm: process(i_clk, i_rst)
 	 begin
 		if  i_rst = '0' then
@@ -73,12 +73,12 @@ fsm: process(i_clk, i_rst)
 					if ballPos = "0100000000" and i_btn2 = '1' then
 					cstate <= s2;
 					elsif ballPos = "1000000000"  then
-					cstate <= s0;--失敗得分
+					cstate <= s_wait;--失敗得分
 					p1_core <= '1';	
 							
                     
 					elsif ballPos /= "0100000000" and i_btn2 = '1' then
-					cstate <= s0;
+					cstate <= s_wait;
 					p1_core <= '1';
 
 					else
@@ -88,16 +88,20 @@ fsm: process(i_clk, i_rst)
 					if ballPos = "0000000010" and i_btn1 = '1' then
 					cstate <= s1;
 					elsif ballPos = "0000000001"  then
-					cstate <= s0;
+					cstate <= s_wait;
 					p2_core <= '1';
 
 					elsif ballPos /= "0000000010" and i_btn1 = '1' then
-					cstate <= s0;
+					cstate <= s_wait;
 					p2_core <= '1';
 
 					else
 					cstate <= s2;
 					end if;
+				when s_wait =>
+                    if i_btn1 = '0' and i_btn2 = '0' then
+                        cstate <= s0;
+                    end if;
 				when others=>
 					cstate <= cstate;
 			end case;
@@ -197,11 +201,11 @@ pp2_score: process(i_clk, i_rst)
 		end if;
 	end process;
 		
-led: process(i_clk, i_rst)
+led: process(slowClk, i_rst)
 	begin
 		if i_rst = '0' then
 			o_led <= (others => '0');
-		elsif rising_edge(i_clk) then	
+		elsif rising_edge(slowClk) then	
 			case cstate is
 				when s0 =>
 					o_led(7 downto 4) <= p2_score;
