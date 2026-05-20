@@ -27,6 +27,18 @@ begin
     x <= to_integer(unsigned(pixel_x));
     y <= to_integer(unsigned(pixel_y));
 
+	
+div: process(i_clk, i_rst)
+	begin
+	if (i_rst = '0') then 
+            divCnt <= (others => '0');
+        elsif rising_edge(i_clk) then 
+            divCnt <= divCnt + 1;
+        end if;
+    end process;
+
+    slowClk <= divCnt(23);
+
     ------------------------------------------------
     -- 方塊位置
     ------------------------------------------------
