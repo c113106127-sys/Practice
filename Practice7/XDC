@@ -1,0 +1,26 @@
+set_property -dict { PACKAGE_PIN Y9    IOSTANDARD LVCMOS33 } [get_ports clk_50M]
+set_property -dict { PACKAGE_PIN G22   IOSTANDARD LVCMOS33 } [get_ports rst]
+
+set_property -dict { PACKAGE_PIN V17   IOSTANDARD LVCMOS33 } [get_ports hsync]
+set_property -dict { PACKAGE_PIN W17   IOSTANDARD LVCMOS33 } [get_ports vsync]
+set_property -dict { PACKAGE_PIN W18   IOSTANDARD LVCMOS33 } [get_ports VGA_CLK]
+set_property -dict { PACKAGE_PIN W16   IOSTANDARD LVCMOS33 } [get_ports VGA_BLANK_N]
+
+# Red
+set_property -dict { PACKAGE_PIN W15   IOSTANDARD LVCMOS33 } [get_ports {rgb[11]}]  ; # 對應 HDMI_D11
+set_property -dict { PACKAGE_PIN W13   IOSTANDARD LVCMOS33 } [get_ports {rgb[10]}]  ; # 對應 HDMI_D10
+set_property -dict { PACKAGE_PIN Y15   IOSTANDARD LVCMOS33 } [get_ports {rgb[9]}]   ; # 對應 HDMI_D9
+set_property -dict { PACKAGE_PIN AA17  IOSTANDARD LVCMOS33 } [get_ports {rgb[8]}]   ; # 對應 HDMI_D8
+
+#Green
+set_property -dict { PACKAGE_PIN AB17  IOSTANDARD LVCMOS33 } [get_ports {rgb[7]}]   ; # 對應 HDMI_D7
+set_property -dict { PACKAGE_PIN AA16  IOSTANDARD LVCMOS33 } [get_ports {rgb[6]}]   ; # 對應 HDMI_D6
+set_property -dict { PACKAGE_PIN AB16  IOSTANDARD LVCMOS33 } [get_ports {rgb[5]}]   ; # 對應 HDMI_D5
+set_property -dict { PACKAGE_PIN AB15  IOSTANDARD LVCMOS33 } [get_ports {rgb[4]}]   ; # 對應 HDMI_D4
+
+# Blue
+set_property -dict { PACKAGE_PIN Y14   IOSTANDARD LVCMOS33 } [get_ports {rgb[3]}]   ; # 對應 HDMI_D3
+set_property -dict { PACKAGE_PIN AA14  IOSTANDARD LVCMOS33 } [get_ports {rgb[2]}]   ; # 對應 HDMI_D2
+set_property -dict { PACKAGE_PIN AA13  IOSTANDARD LVCMOS33 } [get_ports {rgb[1]}]   ; # 對應 HDMI_D1
+set_property -dict { PACKAGE_PIN Y13   IOSTANDARD LVCMOS33 } [get_ports {rgb[0]}]   ; # 對應 HDMI_D0
+
