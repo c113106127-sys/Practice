@@ -1,0 +1,39 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL; 
+
+entity practice7 is
+    PORT (
+        clk         : in  STD_LOGIC;                    
+        rst         : in  STD_LOGIC;                    
+        pixel_x     : in  STD_LOGIC_VECTOR(9 DOWNTO 0); 
+        pixel_y     : in  STD_LOGIC_VECTOR(9 DOWNTO 0); 
+        video_on    : in  STD_LOGIC;               
+        rgb         : out STD_LOGIC_VECTOR(11 DOWNTO 0) 
+    );
+end practice7;
+
+architecture Behavioral of practice7 is
+    signal x : integer;
+    signal y : integer;
+begin
+
+    x <= to_integer(unsigned(pixel_x));
+    y <= to_integer(unsigned(pixel_y));
+
+    process(video_on, x, y)
+    begin
+        if video_on = '0' then
+  
+            rgb <= "000000000000"; 
+        else
+           
+            if (x >= 270 and x <= 370) and (y >= 190 and y <= 290) then
+                rgb <= "111111110000"; -- 黃色 (R=4"F", G=4"F", B=4"0")
+            else
+                rgb <= "000000000000"; -- 背景全黑
+            end if;
+        end if;
+    end process;
+
+end Behavioral;
