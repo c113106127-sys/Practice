@@ -41,19 +41,19 @@ begin
     begin
         if i_rst = '1' then
             clk_div <= '0';
-            pixel_clk <= '0';
+           
         elsif rising_edge(i_clk) then
             clk_div <= not clk_div;       -- 切換clk_div信號
-            pixel_clk <= clk_div;     -- 將pixel_clk設為clk_div的輸出
+                
         end if;
     end process;
 
     -- 水平計數器 (h_count)
-    process (pixel_clk, i_rst)
+    process (clk_div, i_rst)
     begin
         if i_rst = '1' then
             h_count <= 0;
-        elsif rising_edge(pixel_clk) then
+        elsif rising_edge(clk_div) then
             if h_count < H_TOTAL - 1 then
                 h_count <= h_count + 1;
             else
@@ -63,11 +63,11 @@ begin
     end process;
 
     -- 垂直計數器 (v_count)
-    process (pixel_clk, i_rst)
+    process (clk_div, i_rst)
     begin
         if i_rst = '1' then
             v_count <= 0;
-        elsif rising_edge(pixel_clk) then
+        elsif rising_edge(clk_div) then
             if h_count = H_TOTAL - 1 then  -- 當水平計數器回到0時，垂直計數器增加
                 if v_count < V_TOTAL - 1 then
                     v_count <= v_count + 1;
