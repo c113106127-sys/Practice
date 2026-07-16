@@ -1,0 +1,109 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+
+entity pong_top is
+    generic(
+        H_RES         : INTEGER  := 800;
+        H_FP          : INTEGER  := 56;
+        H_SYNC        : INTEGER  := 120;
+        H_BP          : INTEGER  := 64;
+        H_POL         : STD_LOGIC := '1';
+
+        V_RES         : INTEGER  := 600;
+        V_FP          : INTEGER  := 37;
+        V_SYNC        : INTEGER  := 6;
+        V_BP          : INTEGER  := 23;
+        V_POL         : STD_LOGIC := '1';
+
+        PADDLE_W      : INTEGER := 15;
+        PADDLE_H      : INTEGER := 150;
+        PADDLE_MARGIN : INTEGER := 20;
+        BALL_SIZE     : INTEGER := 20
+    );
+    port (
+        i_clk             : IN STD_LOGIC; -- 100MHz 系統時脈
+        i_rst             : IN STD_LOGIC;
+
+        -- 左右玩家按鍵
+        i_btn_left_up     : IN STD_LOGIC;
+        i_btn_left_down   : IN STD_LOGIC;
+        i_btn_right_up    : IN STD_LOGIC;
+        i_btn_right_down  : IN STD_LOGIC;
+
+        -- VGA 輸出
+        o_red             : OUT STD_LOGIC_VECTOR(3 downto 0);
+        o_green           : OUT STD_LOGIC_VECTOR(3 downto 0);
+        o_blue            : OUT STD_LOGIC_VECTOR(3 downto 0);
+        o_h_sync          : OUT STD_LOGIC;
+        o_v_sync          : OUT STD_LOGIC
+    );
+end pong_top;
+
+architecture Behavior of pong_top is
+    -- pingpong_game <-> vga 之間的共用訊號
+    signal left_paddle_y  : INTEGER range 0 to V_RES - PADDLE_H;
+    signal right_paddle_y : INTEGER range 0 to V_RES - PADDLE_H;
+    signal ball_x         : INTEGER range 0 to H_RES - BALL_SIZE;
+    signal ball_y         : INTEGER range 0 to V_RES - BALL_SIZE;
+
+    signal vga_clk_div    : STD_LOGIC;
+
+begin
+
+    --  遊戲邏輯模組 
+    pingpong_game_inst : entity work.pingpong_game
+        generic map(
+            H_RES         => H_RES,
+            V_RES         => V_RES,
+            PADDLE_W      => PADDLE_W,
+            PADDLE_H      => PADDLE_H,
+            PADDLE_MARGIN => PADDLE_MARGIN,
+            BALL_SIZE     => BALL_SIZE
+        )
+        port map(
+            i_clk             => i_clk,
+            i_rst             => i_rst,
+            i_btn_left_up     => i_btn_left_up,
+            i_btn_right_up    => i_btn_right_up,
+            i_btn_left_down   => i_btn_left_down,
+            i_btn_right_down  => i_btn_right_down,
+            o_left_paddle_y   => left_paddle_y,
+            o_right_paddle_y  => right_paddle_y,
+            o_ball_x          => ball_x,
+            o_ball_y          => ball_y
+        );
+
+    --  VGA 顯示模組
+    vga_inst : entity work.vga
+        generic map(
+            H_RES         => H_RES,
+            H_FP          => H_FP,
+            H_SYNC        => H_SYNC,
+            H_BP          => H_BP,
+            H_POL         => H_POL,
+            V_RES         => V_RES,
+            V_FP          => V_FP,
+            V_SYNC        => V_SYNC,
+            V_BP          => V_BP,
+            V_POL         => V_POL,
+            PADDLE_W      => PADDLE_W,
+            PADDLE_H      => PADDLE_H,
+            PADDLE_MARGIN => PADDLE_MARGIN,
+            BALL_SIZE     => BALL_SIZE
+        )
+        port map(
+            i_clk            => i_clk,
+            i_rst            => i_rst,
+            i_left_paddle_y  => left_paddle_y,
+            i_right_paddle_y => right_paddle_y,
+            i_ball_x         => ball_x,
+            i_ball_y         => ball_y,
+            o_red            => o_red,
+            o_green          => o_green,
+            o_blue           => o_blue,
+            o_h_sync         => o_h_sync,
+            o_v_sync         => o_v_sync,
+            o_clk_div        => vga_clk_div
+        );
+
+end Behavior;
