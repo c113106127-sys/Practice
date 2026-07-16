@@ -1,0 +1,177 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity vga is
+    generic(
+                H_RES     : INTEGER  := 800;
+                H_FP        : INTEGER  := 56;
+                H_SYNC  : INTEGER  := 120;
+                H_BP       : INTEGER  := 64;
+                H_POL    : STD_LOGIC := '1';
+
+                V_RES    : INTEGER  := 600;
+                V_FP       : INTEGER  := 37;
+                V_SYNC : INTEGER  := 6;
+                V_BP      : INTEGER  := 23;
+                V_POL    : STD_LOGIC := '1';
+                
+                PADDLE_W      : INTEGER := 15;
+                PADDLE_H      : INTEGER := 150;
+                PADDLE_MARGIN : INTEGER := 20;
+                BALL_SIZE     : INTEGER := 20
+    );
+	port (
+                i_clk     : IN STD_LOGIC;              -- 100MHz時鐘輸入
+		        i_rst     : IN STD_LOGIC;              -- 重置信號
+		        
+		        i_left_paddle_y  : IN INTEGER range 0 to V_RES - PADDLE_H;
+                i_right_paddle_y : IN INTEGER range 0 to V_RES - PADDLE_H;
+                i_ball_x         : IN INTEGER range 0 to H_RES - BALL_SIZE;
+                i_ball_y         : IN INTEGER range 0 to V_RES - BALL_SIZE;
+                
+                o_red     : OUT STD_LOGIC_VECTOR(3 downto 0);  -- 紅色信號輸出
+                o_green   : OUT STD_LOGIC_VECTOR(3 downto 0);  -- 綠色信號輸出
+                o_blue    : OUT STD_LOGIC_VECTOR(3 downto 0);  -- 藍色信號輸出
+                o_h_sync  : OUT STD_LOGIC;             -- 水平同步信號輸出
+                o_v_sync  : OUT STD_LOGIC;              -- 垂直同步信號輸出
+                o_clk_div : OUT STD_LOGIC
+	);
+end vga;
+
+architecture Behavior of vga is
+    constant H_TOTAL : INTEGER := H_RES + H_FP  + H_SYNC + H_BP ;
+    constant V_TOTAL : INTEGER := V_RES + V_FP + V_SYNC + V_BP ;
+    signal h_count : INTEGER range 0 to H_TOTAL - 1 := 0;
+    signal v_count : INTEGER range 0 to V_TOTAL - 1 := 0; 
+    signal clk_div : STD_LOGIC := '0';      -- 臨時信號，用於時鐘分頻
+
+   ---------------------------------------------------------------
+    -- 球拍在水平方向的固定範圍
+    ---------------------------------------------------------------
+    constant LEFT_PADDLE_X0  : INTEGER := PADDLE_MARGIN;
+    constant LEFT_PADDLE_X1  : INTEGER := PADDLE_MARGIN + PADDLE_W;
+    constant RIGHT_PADDLE_X0 : INTEGER := H_RES - PADDLE_MARGIN - PADDLE_W;
+    constant RIGHT_PADDLE_X1 : INTEGER := H_RES - PADDLE_MARGIN;
+ 
+begin
+    -- 時鐘分頻器：將100MHz時鐘降頻至50MHz
+    process (i_clk, i_rst)
+    begin
+        if i_rst = '1' then
+            clk_div <= '0';
+        elsif rising_edge(i_clk) then
+            clk_div <= not clk_div;       -- 切換clk_div信號
+        end if;
+    end process;
+    o_clk_div <= clk_div;
+    
+    -- 水平計數器 (h_count)
+    process (clk_div, i_rst)
+    begin
+        if i_rst = '1' then
+            h_count <= 0;
+        elsif rising_edge(clk_div) then
+            if h_count < H_TOTAL - 1 then
+                h_count <= h_count + 1;
+            else
+                h_count <= 0;
+            end if;
+        end if;
+    end process;
+
+    -- 垂直計數器 (v_count)
+    process (clk_div, i_rst)
+    begin
+        if i_rst = '1' then
+            v_count <= 0;
+        elsif rising_edge(clk_div) then
+            if h_count = H_TOTAL - 1 then  -- 當水平計數器回到0時，垂直計數器增加
+                if v_count < V_TOTAL - 1 then
+                    v_count <= v_count + 1;
+                else
+                    v_count <= 0;
+                end if;
+            end if;
+        end if;
+    end process;
+
+    -- 水平同步信號生成
+    process (h_count, i_rst)
+    begin
+        if i_rst = '1' then
+            o_h_sync <= NOT H_POL;
+        elsif h_count < H_RES + H_FP or h_count >= H_RES + H_FP + H_SYNC then
+            o_h_sync <= NOT H_POL ;
+        else
+            o_h_sync <= H_POL ;
+        end if;
+    end process;
+
+    -- 垂直同步信號生成
+    process (v_count, i_rst)
+    begin
+        if i_rst = '1' then
+            o_v_sync <= NOT V_POL;
+        elsif v_count < V_RES + V_FP or v_count >= V_RES + V_FP + V_SYNC then
+            o_v_sync <= NOT V_POL;
+        else
+            o_v_sync <= V_POL;
+        end if;
+    end process;
+
+    -- RGB
+    process (h_count, v_count, i_left_paddle_y, i_right_paddle_y, i_ball_x, i_ball_y)
+        variable in_left_paddle  : STD_LOGIC;
+        variable in_right_paddle : STD_LOGIC;
+        variable in_ball         : STD_LOGIC;
+    begin
+        if i_rst = '1' then
+            o_red   <= "0000";
+            o_green <= "0000";
+            o_blue  <= "0000";
+        else
+            -- 左球拍
+            if (h_count >= LEFT_PADDLE_X0 and h_count < LEFT_PADDLE_X1) and
+               (v_count >= i_left_paddle_y  and v_count < i_left_paddle_y + PADDLE_H) then
+                in_left_paddle := '1';
+            else
+                in_left_paddle := '0';
+            end if;
+
+            -- 右球拍
+            if (h_count >= RIGHT_PADDLE_X0 and h_count < RIGHT_PADDLE_X1) and
+               (v_count >= i_right_paddle_y  and v_count < i_right_paddle_y + PADDLE_H) then
+                in_right_paddle := '1';
+            else
+                in_right_paddle := '0';
+            end if;
+
+            -- 球
+            if (h_count >= i_ball_x and h_count < i_ball_x + BALL_SIZE) and
+              (v_count >= i_ball_y and v_count < i_ball_y + BALL_SIZE) then
+                in_ball := '1';
+            else
+                in_ball := '0';
+            end if;
+            if in_left_paddle = '1' or in_right_paddle = '1' then
+                o_red   <= "0000";
+                o_green <= "1111";   
+                o_blue  <= "0000";
+            elsif in_ball = '1' then
+                o_red   <= "1111";
+                o_green <= "1111";
+                o_blue  <= "1111";   
+            elsif h_count < H_RES and v_count < V_RES then
+                o_red   <= "0000";
+                o_green <= "0000";
+                o_blue  <= "0000";   
+            else
+                o_red   <= "0000";
+                o_green <= "0000";
+                o_blue  <= "0000";   
+            end if;
+        end if;
+    end process;
+
+end Behavior;
