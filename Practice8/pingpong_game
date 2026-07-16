@@ -1,0 +1,195 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.STD_LOGIC_ARITH.ALL;
+use IEEE.STD_LOGIC_UNSIGNED.ALL;
+
+entity pingpong_game is
+    generic(
+        H_RES         : INTEGER := 800;
+        V_RES         : INTEGER := 600;
+        PADDLE_W      : INTEGER := 15;
+        PADDLE_H      : INTEGER := 150;
+        PADDLE_MARGIN : INTEGER := 20;
+        BALL_SIZE     : INTEGER := 20
+    );
+    port (
+        i_clk            : IN STD_LOGIC; 
+        i_rst            : IN STD_LOGIC;
+        i_btn_left_up    : IN STD_LOGIC;
+        i_btn_right_up    : IN STD_LOGIC;
+        i_btn_left_down    : IN STD_LOGIC;
+        i_btn_right_down    : IN STD_LOGIC;
+        o_left_paddle_y  : OUT INTEGER range 0 to V_RES - PADDLE_H;
+        o_right_paddle_y : OUT INTEGER range 0 to V_RES - PADDLE_H;
+        o_ball_x         : OUT INTEGER range 0 to H_RES - BALL_SIZE;
+        o_ball_y         : OUT INTEGER range 0 to V_RES - BALL_SIZE
+    );
+end pingpong_game;
+
+architecture Behavior of pingpong_game is
+    -- 狀態機定義
+    type state_type is (INIT, PLAYING, GAMEOVER);
+    signal state : state_type := INIT;
+
+    -- 球的位置與速度信號
+    signal ball_x : INTEGER range -50 to H_RES + 50 := H_RES / 2;
+    signal ball_y : INTEGER range -50 to V_RES + 50 := V_RES / 2;
+    signal ball_dx : INTEGER := 4; -- 水平速度 
+    signal ball_dy : INTEGER := 3; -- 垂直速度 
+
+    -- 球拍水平固定邊界 
+    constant LEFT_PADDLE_X0  : INTEGER := PADDLE_MARGIN;
+    constant LEFT_PADDLE_X1  : INTEGER := PADDLE_MARGIN + PADDLE_W;
+    constant RIGHT_PADDLE_X0 : INTEGER := H_RES - PADDLE_MARGIN - PADDLE_W;
+    constant RIGHT_PADDLE_X1 : INTEGER := H_RES - PADDLE_MARGIN;
+
+    constant PADDLE_SPEED : INTEGER := 5;
+    signal left_paddle_y  : INTEGER range 0 to V_RES - PADDLE_H := (V_RES - PADDLE_H) / 2;
+    signal right_paddle_y : INTEGER range 0 to V_RES - PADDLE_H := (V_RES - PADDLE_H) / 2;
+    
+    -- 分頻時脈產生器
+    signal clk_div  : STD_LOGIC_VECTOR(25 downto 0) := (others => '0');
+    signal slow_clk : STD_LOGIC;
+begin
+
+    o_left_paddle_y  <= left_paddle_y;
+    o_right_paddle_y <= right_paddle_y;
+    o_ball_x <= ball_x when (ball_x >= 0 and ball_x <= H_RES - BALL_SIZE) else 0;
+    o_ball_y <= ball_y when (ball_y >= 0 and ball_y <= V_RES - BALL_SIZE) else 0;
+    
+    --slow_clk
+    process (i_clk, i_rst)
+    begin
+        if i_rst = '1' then
+            clk_div <= (others => '0');
+        elsif rising_edge(i_clk) then
+            clk_div <= clk_div + 1;
+                slow_clk <= clk_div(2);
+        end if;
+    end process;
+    
+    --  FSM 
+    process(i_clk, i_rst)
+    begin
+        if i_rst = '1' then
+            state <= INIT;
+        elsif rising_edge(i_clk) then
+            case state is
+                when INIT =>
+                    state <= PLAYING; 
+                when PLAYING =>
+                    if (ball_x < 0) or (ball_x + BALL_SIZE > H_RES) then
+                        state <= GAMEOVER;
+                    else
+                        state <= PLAYING;
+                    end if;
+                when GAMEOVER =>
+                    state <= INIT; 
+                when others =>
+                    state <= INIT;
+            end case;
+        end if;
+    end process;
+
+    --  遊戲 移動邏輯
+    process(slow_clk, i_rst)
+    begin
+        if i_rst = '1' then
+            ball_x  <= H_RES / 2;
+            ball_y  <= V_RES / 2;
+            ball_dx <= 4;
+            ball_dy <= 3;
+        elsif rising_edge(slow_clk) then
+            case state is
+                when INIT =>
+                    ball_x  <= H_RES / 2;
+                    ball_y  <= V_RES / 2;
+                    ball_dx <= 4;
+                    ball_dy <= 3;
+                when PLAYING =>
+                    -- 垂直邊界碰撞
+                    if (ball_y <= 0 and ball_dy < 0) then
+                        ball_dy <= -ball_dy;
+                    elsif (ball_y + BALL_SIZE >= V_RES and ball_dy > 0) then
+                        ball_dy <= -ball_dy;
+                    end if;
+                    -- 左球拍反彈
+                    if (ball_x <= LEFT_PADDLE_X1 and ball_x + ball_dx >= LEFT_PADDLE_X0) then
+                        if (ball_y + BALL_SIZE >= left_paddle_y) and (ball_y <= left_paddle_y + PADDLE_H) then
+                            if ball_dx < 0 then
+                                ball_dx <= -ball_dx; -- 反彈向右
+                            end if;
+                        end if;
+                    end if;
+                    -- 右球拍反彈
+                    if (ball_x + BALL_SIZE >= RIGHT_PADDLE_X0 and ball_x + BALL_SIZE + ball_dx <= RIGHT_PADDLE_X1) then
+                        if (ball_y + BALL_SIZE >= right_paddle_y) and (ball_y <= right_paddle_y + PADDLE_H) then
+                            if ball_dx > 0 then
+                                ball_dx <= -ball_dx; -- 反彈向左
+                            end if;
+                        end if;
+                    end if;
+                    ball_x <= ball_x + ball_dx;
+                    ball_y <= ball_y + ball_dy;
+                when GAMEOVER =>
+                    null;
+            end case;
+        end if;
+    end process;
+
+    -- 左球拍移動控制 
+    process(slow_clk, i_rst)
+    begin
+        if i_rst = '1' then
+            left_paddle_y <= (V_RES - PADDLE_H) / 2;
+        elsif rising_edge(slow_clk) then
+            if state = PLAYING then            
+                -- 上移按鈕
+                if i_btn_left_up = '1' then
+                    if left_paddle_y > PADDLE_SPEED then
+                        left_paddle_y <= left_paddle_y - PADDLE_SPEED;
+                    else
+                        left_paddle_y <= 0; -- 貼齊上邊界
+                    end if;                
+                -- 下移按鈕
+                elsif i_btn_left_down = '1' then
+                    if left_paddle_y < (V_RES - PADDLE_H - PADDLE_SPEED) then
+                        left_paddle_y <= left_paddle_y + PADDLE_SPEED;
+                    else
+                        left_paddle_y <= V_RES - PADDLE_H; -- 貼齊下邊界
+                    end if;
+                end if;            
+            elsif state = INIT then
+                left_paddle_y <= (V_RES - PADDLE_H) / 2;
+            end if;
+        end if;
+    end process;
+
+    -- 右球拍
+    process(slow_clk, i_rst)
+    begin
+        if i_rst = '1' then
+            right_paddle_y <= (V_RES - PADDLE_H) / 2;
+        elsif rising_edge(slow_clk) then
+            if state = PLAYING then           
+                -- 上移按鈕
+                if i_btn_right_up = '1' then
+                    if right_paddle_y > PADDLE_SPEED then
+                        right_paddle_y <= right_paddle_y - PADDLE_SPEED;
+                    else
+                        right_paddle_y <= 0; -- 貼齊上邊界
+                    end if;
+                -- 下移按鈕
+                elsif i_btn_right_down = '1' then
+                    if right_paddle_y < (V_RES - PADDLE_H - PADDLE_SPEED) then
+                        right_paddle_y <= right_paddle_y + PADDLE_SPEED;
+                    else
+                        right_paddle_y <= V_RES - PADDLE_H; -- 貼齊下邊界
+                    end if;
+                end if;           
+            elsif state = INIT then
+                right_paddle_y <= (V_RES - PADDLE_H) / 2;
+            end if;
+        end if;
+    end process;
+end Behavior;
