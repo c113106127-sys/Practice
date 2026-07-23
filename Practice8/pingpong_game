@@ -64,16 +64,16 @@ begin
             clk_div <= (others => '0');
         elsif rising_edge(i_clk) then
             clk_div <= clk_div + 1;
-                slow_clk <= clk_div(2);
+                slow_clk <= clk_div(20);
         end if;
     end process;
     
     --  FSM 
-    process(i_clk, i_rst)
+    process(slow_clk, i_rst)
     begin
         if i_rst = '1' then
             state <= INIT;
-        elsif rising_edge(i_clk) then
+        elsif rising_edge(slow_clk) then
             case state is
                 when INIT =>
                     state <= PLAYING; 
@@ -139,7 +139,7 @@ begin
 
     -- 左球拍移動控制 
     process(slow_clk, i_rst)
-    begin
+    begin 
         if i_rst = '1' then
             left_paddle_y <= (V_RES - PADDLE_H) / 2;
         elsif rising_edge(slow_clk) then
