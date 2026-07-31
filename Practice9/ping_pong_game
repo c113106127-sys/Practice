@@ -1,0 +1,55 @@
+                        flag <= '0';
+                    elsif ball_en = '1' then
+                        move <= move(0) & move(9 downto 1);
+                    end if;
+                when others =>
+                    null;
+            end case;
+        end if;
+    end process;
+
+    -- SEND 發球脈衝與 s_wait 暫停計數
+    process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            pulse_counter <= 0;
+            send_pulse    <= '0';
+            pause_cnt     <= 0;
+        elsif rising_edge(i_clk) then
+            -- SEND 
+            if state = SEND then
+                if pulse_counter < G_SEND_TICKS then
+                    pulse_counter <= pulse_counter + 1;
+                    send_pulse    <= '1';
+                else
+                    send_pulse <= '0';
+                end if;
+            else
+                pulse_counter <= 0;
+                send_pulse    <= '0';
+            end if;
+            -- 暫停倒數邏輯
+            if state = s_wait then
+                if pause_done = '1' then
+                    pause_cnt <= 0;
+                else
+                    pause_cnt <= pause_cnt + 1;
+                end if;
+            else
+                pause_cnt <= 0;
+            end if;
+        end if;
+    end process;
+
+    -- LED 顯示控制 
+    process(state, move, loss_score)
+    begin
+        case state is
+            when RECEIVE | MOVE_R | SEND | MOVE_L => 
+                o_led <= move(8 downto 1);
+            when others => 
+                o_led <= "0000" & std_logic_vector(loss_score);
+        end case;
+    end process;
+
+end architecture;
