@@ -87,7 +87,7 @@ begin
                 when INIT =>
                     if i_sw = '0' then
                         state <= RECEIVE;
-                    elsif btn_rise = '1' then
+                    elsif 
                         state <= MOVE_R;
                     end if;
                 when RECEIVE =>
