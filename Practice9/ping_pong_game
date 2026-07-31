@@ -59,7 +59,7 @@ begin
         end if;
     end process;
 
-    -- 球速 clock-enable 產生器
+    -- 球速 clk-en 產生器
     process(i_clk, i_rst)
     begin
         if i_rst = '0' then
@@ -172,15 +172,13 @@ begin
         end if;
     end process;
 
-    -- SEND 發球脈衝與 s_wait 暫停計數
+    -- SEND 
     process(i_clk, i_rst)
     begin
         if i_rst = '0' then
             pulse_counter <= 0;
             send_pulse    <= '0';
-            pause_cnt     <= 0;
         elsif rising_edge(i_clk) then
-            -- SEND 
             if state = SEND then
                 if pulse_counter < G_SEND_TICKS then
                     pulse_counter <= pulse_counter + 1;
@@ -192,7 +190,15 @@ begin
                 pulse_counter <= 0;
                 send_pulse    <= '0';
             end if;
-            -- 暫停倒數邏輯
+        end if;
+    end process;
+
+    -- s_wait
+    process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            pause_cnt <= 0;
+        elsif rising_edge(i_clk) then
             if state = s_wait then
                 if pause_done = '1' then
                     pause_cnt <= 0;
