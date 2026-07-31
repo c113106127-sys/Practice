@@ -1,3 +1,167 @@
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity ping_pong_game is
+    generic (
+        G_CLK_HZ     : positive := 50_000_000;
+        G_BALL_TICKS : positive := 12_500_000; -- 球速：每格約 250 ms @50MHz
+        G_SEND_TICKS : positive := 8;          -- SEND 高電位脈衝長度（i_clk cycles）
+        G_PAUSE_MS   : positive := 800         -- 失分後暫停時間
+    );
+    port (
+        i_clk   : in    std_logic;
+        i_rst   : in    std_logic; 
+        i_btn  : in    std_logic;
+        i_sw    : in    std_logic; -- '1': 本板先發；'0': 等待對手
+        io_gpio : inout std_logic;
+        o_led   : out   std_logic_vector(7 downto 0)
+    );
+end entity;
+
+architecture rtl of ping_pong_game is
+    type state_type is (INIT, RECEIVE, MOVE_R, SEND, MOVE_L, s_wait, game_over);
+    signal state : state_type := INIT;
+    signal move : std_logic_vector(9 downto 0) := "0000000001";
+    signal flag : std_logic := '1';
+    signal loss_score : unsigned(3 downto 0) := (others => '0');
+    signal ball_cnt : natural range 0 to G_BALL_TICKS - 1 := 0;
+    signal ball_en  : std_logic := '0';
+    signal pulse_counter : natural range 0 to G_SEND_TICKS := 0;
+    signal send_pulse    : std_logic := '0';
+    constant C_PAUSE_CYCLES : positive := (G_CLK_HZ / 1000) * G_PAUSE_MS;
+    signal pause_cnt  : natural range 0 to C_PAUSE_CYCLES - 1 := 0;
+    signal pause_done : std_logic;
+    signal gpio_meta, gpio_sync, gpio_sync_d : std_logic := '0';
+    signal btn_meta, btn_sync, btn_sync_d    : std_logic := '0';
+    signal gpio_rise, btn_rise : std_logic;
+begin
+
+    io_gpio <= send_pulse when state = SEND else 'Z';
+
+    gpio_rise  <= '1' when (gpio_sync = '1' and gpio_sync_d = '0') else '0';
+    btn_rise   <= '1' when (btn_sync = '1' and btn_sync_d = '0')   else '0';
+    pause_done <= '1' when pause_cnt = C_PAUSE_CYCLES - 1          else '0';
+
+    -- 雙級同步器
+    process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            gpio_meta <= '0'; gpio_sync <= '0'; gpio_sync_d <= '0';
+            btn_meta  <= '0'; btn_sync  <= '0'; btn_sync_d  <= '0';
+        elsif rising_edge(i_clk) then
+            gpio_meta   <= io_gpio;
+            gpio_sync   <= gpio_meta;
+            gpio_sync_d <= gpio_sync;
+            btn_meta    <= i_btn;
+            btn_sync    <= btn_meta;
+            btn_sync_d  <= btn_sync;
+        end if;
+    end process;
+
+    -- 球速 clock-enable 產生器
+    process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            ball_cnt <= 0;
+            ball_en  <= '0';
+        elsif rising_edge(i_clk) then
+            ball_en <= '0';
+            if ball_cnt = G_BALL_TICKS - 1 then
+                ball_cnt <= 0;
+                ball_en  <= '1';
+            else
+                ball_cnt <= ball_cnt + 1;
+            end if;
+        end if;
+    end process;
+
+    -- FSM 
+    process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            state      <= INIT;
+            loss_score <= (others => '0');
+        elsif rising_edge(i_clk) then
+            case state is
+                when INIT =>
+                    if i_sw = '0' then
+                        state <= RECEIVE;
+                    elsif btn_rise = '1' then
+                        state <= MOVE_R;
+                    end if;
+                when RECEIVE =>
+                    if gpio_rise = '1' then
+                        state <= MOVE_L;
+                    elsif (btn_rise = '1') and (move = "0000000001") then
+                        state <= MOVE_R;
+                    end if;
+                when MOVE_R =>
+                    if move = "1000000000" then
+                        state <= SEND;
+                    end if;
+                when SEND =>
+                    if pulse_counter = G_SEND_TICKS then
+                        state <= RECEIVE;
+                    end if;
+                when MOVE_L =>
+                    if (move = "0000000001") and (flag = '0') then
+                        state      <= s_wait;      -- 漏接
+                        loss_score <= loss_score + 1; 
+                    elsif btn_rise = '1' then
+                        if move = "0000000010" then
+                            state <= MOVE_R;       -- 成功擊球
+                        else
+                            state      <= s_wait;  -- 太早按
+                            loss_score <= loss_score + 1;
+                        end if;
+                    end if;
+                when s_wait =>
+                    if pause_done = '1' then
+                        if loss_score = "1111" then
+                            state <= game_over;
+                        else
+                            state <= INIT;
+                        end if;
+                    end if;
+
+                when game_over =>
+                    if btn_rise = '1' then
+                        loss_score <= (others => '0');
+                        state      <= INIT;
+                    end if;
+
+                when others =>
+                    state <= INIT;
+            end case;
+        end if;
+    end process;
+
+    -- 球的位置控制
+    process(i_clk, i_rst)
+    begin
+        if i_rst = '0' then
+            move <= "0000000001";
+            flag <= '1';
+        elsif rising_edge(i_clk) then
+            case state is
+                when INIT | game_over =>
+                    move <= "0000000001";
+                    flag <= '1';
+                when RECEIVE =>
+                    if (move /= "0000000001") and (move /= "1000000000") then
+                        move <= "0000000001";
+                    end if;
+                    if gpio_rise = '1' then
+                        flag <= '1';
+                    end if;
+                when MOVE_R =>
+                    if ball_en = '1' then
+                        move <= move(8 downto 0) & move(9);
+                    end if;
+                when MOVE_L =>
+                    if flag = '1' then
+                        move <= "1000000000";
                         flag <= '0';
                     elsif ball_en = '1' then
                         move <= move(0) & move(9 downto 1);
