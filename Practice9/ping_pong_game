@@ -87,7 +87,7 @@ begin
                 when INIT =>
                     if i_sw = '0' then
                         state <= RECEIVE;
-                    elsif 
+                    else 
                         state <= MOVE_R;
                     end if;
                 when RECEIVE =>
