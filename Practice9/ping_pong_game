@@ -1,99 +1,84 @@
 library IEEE;
-use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.NUMERIC_STD.ALL;
+use IEEE.std_logic_1164.all;
+use IEEE.numeric_std.all;
+use IEEE.std_logic_unsigned.all;
 
 entity ping_pong_game is
-    generic (
-        G_CLK_HZ     : positive := 50_000_000;
-        G_BALL_TICKS : positive := 12_500_000; -- 球速：每格約 250 ms @50MHz
-        G_SEND_TICKS : positive := 8;          -- SEND 高電位脈衝長度（i_clk cycles）
-        G_PAUSE_MS   : positive := 800         -- 失分後暫停時間
-    );
     port (
-        i_clk   : in    std_logic;
-        i_rst   : in    std_logic; 
-        i_btn  : in    std_logic;
-        i_sw    : in    std_logic; -- '1': 本板先發；'0': 等待對手
+        i_clk   : in std_logic;
+        i_rst   : in std_logic;
+        i_btn   : in std_logic;
         io_gpio : inout std_logic;
-        o_led   : out   std_logic_vector(7 downto 0)
+        o_led   : out std_logic_vector(7 downto 0)
     );
 end entity;
 
-architecture rtl of ping_pong_game is
-    type state_type is (INIT, RECEIVE, MOVE_R, SEND, MOVE_L, s_wait, game_over);
-    signal state : state_type := INIT;
-    signal move : std_logic_vector(9 downto 0) := "0000000001";
-    signal flag : std_logic := '1';
-    signal loss_score : unsigned(3 downto 0) := (others => '0');
-    signal ball_cnt : natural range 0 to G_BALL_TICKS - 1 := 0;
-    signal ball_en  : std_logic := '0';
-    signal pulse_counter : natural range 0 to G_SEND_TICKS := 0;
-    signal send_pulse    : std_logic := '0';
-    constant C_PAUSE_CYCLES : positive := (G_CLK_HZ / 1000) * G_PAUSE_MS;
-    signal pause_cnt  : natural range 0 to C_PAUSE_CYCLES - 1 := 0;
-    signal pause_done : std_logic;
-    signal gpio_meta, gpio_sync, gpio_sync_d : std_logic := '0';
-    signal btn_meta, btn_sync, btn_sync_d    : std_logic := '0';
-    signal gpio_rise, btn_rise : std_logic;
+architecture Behavioral of ping_pong_game is
+    -- WAIT_START prevents the scoring/hitting press from restarting the game.
+    type state_type is (RECEIVE, SEND, MOVE_R, MOVE_L, WAIT_SCORE, WAIT_START);
+    signal state        : state_type := RECEIVE;
+    signal move         : std_logic_vector(9 downto 0) := "0000000001";
+    signal clk_div      : std_logic_vector(25 downto 0) := (others => '0');
+    signal slow_clk     : std_logic;
+    signal first_left_step         : std_logic := '1';
+    signal gpio_out     : std_logic := 'Z';
+    signal gpio_in      : std_logic;
+    signal gpio_prev    : std_logic := '0';
+    signal recv_edge    : std_logic := '0';
+    signal send_pulse   : std_logic := '0';
+    signal pulse_counter: std_logic_vector(3 downto 0) := "0000";
+    signal loss_score   : unsigned(3 downto 0) := (others => '0');
+    signal btn_prev     : std_logic := '0';
+    signal btn_rise     : std_logic := '0';
 begin
+    io_gpio <= gpio_out;
+    gpio_in <= to_X01(io_gpio);
+    slow_clk <= clk_div(23);
 
-    io_gpio <= send_pulse when state = SEND else 'Z';
-
-    gpio_rise  <= '1' when (gpio_sync = '1' and gpio_sync_d = '0') else '0';
-    btn_rise   <= '1' when (btn_sync = '1' and btn_sync_d = '0')   else '0';
-    pause_done <= '1' when pause_cnt = C_PAUSE_CYCLES - 1          else '0';
-
-    -- 雙級同步器
-    process(i_clk, i_rst)
+   div: process (i_clk, i_rst)
     begin
-        if i_rst = '0' then
-            gpio_meta <= '0'; gpio_sync <= '0'; gpio_sync_d <= '0';
-            btn_meta  <= '0'; btn_sync  <= '0'; btn_sync_d  <= '0';
+        if i_rst = '1' then
+            clk_div <= (others => '0');
         elsif rising_edge(i_clk) then
-            gpio_meta   <= io_gpio;
-            gpio_sync   <= gpio_meta;
-            gpio_sync_d <= gpio_sync;
-            btn_meta    <= i_btn;
-            btn_sync    <= btn_meta;
-            btn_sync_d  <= btn_sync;
+            clk_div <= clk_div + 1;
         end if;
     end process;
 
-    -- 球速 clk-en 產生器
-    process(i_clk, i_rst)
+   io_gpio: process(i_clk)
     begin
-        if i_rst = '0' then
-            ball_cnt <= 0;
-            ball_en  <= '0';
-        elsif rising_edge(i_clk) then
-            ball_en <= '0';
-            if ball_cnt = G_BALL_TICKS - 1 then
-                ball_cnt <= 0;
-                ball_en  <= '1';
+        if rising_edge(i_clk) then
+            if gpio_in = '1' and gpio_prev = '0' then
+                recv_edge <= '1';
             else
-                ball_cnt <= ball_cnt + 1;
+                recv_edge <= '0';
             end if;
+            gpio_prev <= gpio_in;
         end if;
     end process;
 
-    -- FSM 
-    process(i_clk, i_rst)
+   btn: process(i_clk)
     begin
-        if i_rst = '0' then
-            state      <= INIT;
+        if rising_edge(i_clk) then
+            if i_btn = '1' and btn_prev = '0' then
+                btn_rise <= '1';
+            else
+                btn_rise <= '0';
+            end if;
+            btn_prev <= i_btn;
+        end if;
+    end process;
+
+   FSM: process(i_clk, i_rst)
+    begin
+        if i_rst = '1' then
+            state <= RECEIVE;
             loss_score <= (others => '0');
         elsif rising_edge(i_clk) then
             case state is
-                when INIT =>
-                    if i_sw = '0' then
-                        state <= RECEIVE;
-                    else 
-                        state <= MOVE_R;
-                    end if;
                 when RECEIVE =>
-                    if gpio_rise = '1' then
+                    if recv_edge = '1' then
                         state <= MOVE_L;
-                    elsif (btn_rise = '1') and (move = "0000000001") then
+                    elsif i_btn = '1' and move = "0000000001" then
                         state <= MOVE_R;
                     end if;
                 when MOVE_R =>
@@ -101,125 +86,106 @@ begin
                         state <= SEND;
                     end if;
                 when SEND =>
-                    if pulse_counter = G_SEND_TICKS then
+                    if pulse_counter = "1000" then
                         state <= RECEIVE;
                     end if;
                 when MOVE_L =>
-                    if (move = "0000000001") and (flag = '0') then
-                        state      <= s_wait;      -- 漏接
-                        loss_score <= loss_score + 1; 
-                    elsif btn_rise = '1' then
+                    if move = "0000000001" and first_left_step = '0' then
+                        state <= WAIT_SCORE;
+                        loss_score <= loss_score + 1;
+                    elsif i_btn = '1' then
                         if move = "0000000010" then
-                            state <= MOVE_R;       -- 成功擊球
+                            state <= MOVE_R;
                         else
-                            state      <= s_wait;  -- 太早按
+                            state <= WAIT_SCORE;
                             loss_score <= loss_score + 1;
                         end if;
                     end if;
-                when s_wait =>
-                    if pause_done = '1' then
-                        if loss_score = "1111" then
-                            state <= game_over;
-                        else
-                            state <= INIT;
-                        end if;
+                when WAIT_SCORE =>
+                    -- The scoring press must be released before a new game can start.
+                    if i_btn = '0' then
+                        state <= WAIT_START;
                     end if;
-
-                when game_over =>
+                when WAIT_START =>
+                    -- Start only from a fresh press, not the press that caused the score.
                     if btn_rise = '1' then
-                        loss_score <= (others => '0');
-                        state      <= INIT;
+                        state <= RECEIVE;
                     end if;
-
                 when others =>
-                    state <= INIT;
+                    state <= RECEIVE;
             end case;
         end if;
     end process;
 
-    -- 球的位置控制
-    process(i_clk, i_rst)
+   ballmove: process(slow_clk, i_rst)
     begin
-        if i_rst = '0' then
+        if i_rst = '1' then
             move <= "0000000001";
-            flag <= '1';
-        elsif rising_edge(i_clk) then
+            first_left_step <= '1';
+        elsif rising_edge(slow_clk) then
             case state is
-                when INIT | game_over =>
-                    move <= "0000000001";
-                    flag <= '1';
                 when RECEIVE =>
-                    if (move /= "0000000001") and (move /= "1000000000") then
+                    if move /= "0000000001" and move /= "1000000000" then
                         move <= "0000000001";
                     end if;
-                    if gpio_rise = '1' then
-                        flag <= '1';
-                    end if;
                 when MOVE_R =>
-                    if ball_en = '1' then
-                        move <= move(8 downto 0) & move(9);
-                    end if;
+                    move <= move(8 downto 0) & move(9);
                 when MOVE_L =>
-                    if flag = '1' then
+                    if first_left_step = '1' then
                         move <= "1000000000";
-                        flag <= '0';
-                    elsif ball_en = '1' then
+                        first_left_step <= '0';
+                    else
                         move <= move(0) & move(9 downto 1);
                     end if;
+                when WAIT_SCORE | WAIT_START =>
+                    move <= "0000000001";
+                    first_left_step <= '1';
                 when others =>
                     null;
             end case;
         end if;
     end process;
 
-    -- SEND 
-    process(i_clk, i_rst)
+   send: process(i_clk, i_rst)
     begin
-        if i_rst = '0' then
-            pulse_counter <= 0;
-            send_pulse    <= '0';
+        if i_rst = '1' then
+            pulse_counter <= "0000";
+            send_pulse <= '0';
         elsif rising_edge(i_clk) then
-            if state = SEND then
-                if pulse_counter < G_SEND_TICKS then
-                    pulse_counter <= pulse_counter + 1;
-                    send_pulse    <= '1';
-                else
+            case state is
+                when SEND =>
+                    if pulse_counter < "1000" then
+                        pulse_counter <= pulse_counter + 1;
+                        send_pulse <= '1';
+                    else
+                        pulse_counter <= "0000";
+                        send_pulse <= '0';
+                    end if;
+                when others =>
+                    pulse_counter <= "0000";
                     send_pulse <= '0';
-                end if;
-            else
-                pulse_counter <= 0;
-                send_pulse    <= '0';
-            end if;
+            end case;
         end if;
     end process;
 
-    -- s_wait
-    process(i_clk, i_rst)
+   gpio_out: process(i_clk, i_rst)
     begin
-        if i_rst = '0' then
-            pause_cnt <= 0;
-        elsif rising_edge(i_clk) then
-            if state = s_wait then
-                if pause_done = '1' then
-                    pause_cnt <= 0;
-                else
-                    pause_cnt <= pause_cnt + 1;
-                end if;
+        if rising_edge(i_clk) then
+            if state = SEND then
+                gpio_out <= send_pulse;
             else
-                pause_cnt <= 0;
+                gpio_out <= 'Z';
             end if;
         end if;
     end process;
 
-    -- LED 顯示控制 
-    process(state, move, loss_score)
+   led: process(state, move, loss_score)
     begin
         case state is
-            when RECEIVE | MOVE_R | SEND | MOVE_L => 
-                o_led <= move(8 downto 1);
-            when others => 
+            when WAIT_SCORE | WAIT_START =>
                 o_led <= "0000" & std_logic_vector(loss_score);
+            when others =>
+                o_led <= move(8 downto 1);
         end case;
     end process;
-
-end architecture;
+end Behavioral;
