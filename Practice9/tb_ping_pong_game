@@ -1,0 +1,162 @@
+-- Testbench for ping_pong_game
+--
+-- Before simulating, temporarily change this line in ping_pong_game:
+--   slow_clk <= clk_div(23);
+-- to:
+--   slow_clk <= clk_div(3);
+--
+-- Restore bit 23 before synthesizing for the FPGA.
+
+library ieee;
+use ieee.std_logic_1164.all;
+use std.env.all;
+
+entity ping_pong_game_tb is
+end entity;
+
+architecture sim of ping_pong_game_tb is
+    constant CLK_PERIOD : time := 10 ns;
+
+    signal i_clk         : std_logic := '0';
+    signal i_rst         : std_logic := '1';
+    signal i_btn         : std_logic := '0';
+    signal gpio_line     : std_logic := 'Z';
+    signal tb_gpio_drive : std_logic := 'Z';
+    signal o_led         : std_logic_vector(7 downto 0);
+begin
+    -- The testbench drives the shared GPIO line only when it emulates
+    -- the remote player.  Otherwise it releases the line.
+    gpio_line <= tb_gpio_drive;
+
+    dut : entity work.ping_pong_game
+        port map (
+            i_clk   => i_clk,
+            i_rst   => i_rst,
+            i_btn   => i_btn,
+            io_gpio => gpio_line,
+            o_led   => o_led
+        );
+
+    clock_proc : process
+    begin
+        while true loop
+            i_clk <= '0';
+            wait for CLK_PERIOD / 2;
+            i_clk <= '1';
+            wait for CLK_PERIOD / 2;
+        end loop;
+    end process;
+
+    stimulus_proc : process
+    begin
+        -- 1. Reset: the ball must start at the left endpoint, which is not
+        -- displayed by o_led(7 downto 0).
+        i_rst <= '1';
+        wait for 3 * CLK_PERIOD;
+        i_rst <= '0';
+        wait for 2 * CLK_PERIOD;
+        assert o_led = "00000000"
+            report "Reset failed: ball is not at the left endpoint"
+            severity failure;
+
+        -- 2. Local player starts the game.  The ball moves right and the DUT
+        -- must emit a GPIO pulse after it reaches the right endpoint.
+        i_btn <= '1';
+        wait for 2 * CLK_PERIOD;
+        i_btn <= '0';
+
+        wait until gpio_line = '1' for 50 us;
+        assert gpio_line = '1'
+            report "Local serve failed: no GPIO transmit pulse"
+            severity failure;
+
+        wait until gpio_line = 'Z' for 2 us;
+        assert gpio_line = 'Z'
+            report "SEND failed: GPIO was not released after the pulse"
+            severity failure;
+
+        -- 3. Emulate a pulse arriving from the remote player.  Hold the line
+        -- low first so gpio_prev becomes '0'; this DUT detects only 0 -> 1.
+        tb_gpio_drive <= '0';
+        wait for 3 * CLK_PERIOD;
+        tb_gpio_drive <= '1';
+        wait for 2 * CLK_PERIOD;
+        tb_gpio_drive <= '0';
+
+        -- Correct hit: bit 1 appears as LED bit 0.  Pressing here returns
+        -- the state machine to MOVE_R, leading to another transmit pulse.
+        wait until o_led = "00000001" for 50 us;
+        assert o_led = "00000001"
+            report "Remote pulse failed: ball did not reach the hit position"
+            severity failure;
+
+        i_btn <= '1';
+        wait for 2 * CLK_PERIOD;
+        i_btn <= '0';
+        tb_gpio_drive <= 'Z';
+
+        wait until gpio_line = '1' for 50 us;
+        assert gpio_line = '1'
+            report "Correct hit failed: no second GPIO transmit pulse"
+            severity failure;
+        wait until gpio_line = 'Z' for 2 us;
+
+        -- 4. Receive another ball and let it travel farther left before an
+        -- early hit.  LED 04 means move = "0000001000"; the only valid hit
+        -- position is LED 01, so this must score one loss.
+        tb_gpio_drive <= '0';
+        wait for 3 * CLK_PERIOD;
+        tb_gpio_drive <= '1';
+        wait for 2 * CLK_PERIOD;
+        tb_gpio_drive <= '0';
+
+        wait until o_led = "00000100" for 50 us;
+        assert o_led = "00000100"
+            report "Second remote pulse failed: ball did not run far enough left"
+            severity failure;
+
+        i_btn <= '1';                  -- Early: ball is still not at bit 1.
+        wait for 2 * CLK_PERIOD;
+        assert o_led = "00000001"
+            report "Early hit failed: loss score was not displayed"
+            severity failure;
+
+        -- 5. Release the scoring press, then make a fresh press to start a
+        -- new game.  The ball should again begin moving right.
+        i_btn <= '0';
+        wait for 3 * CLK_PERIOD;
+        i_btn <= '1';
+        wait for 2 * CLK_PERIOD;
+        i_btn <= '0';
+        tb_gpio_drive <= 'Z';
+
+        wait until o_led = "00000001" for 50 us;
+        assert o_led = "00000001"
+            report "Restart failed: ball did not leave the left endpoint"
+            severity failure;
+
+        -- 6. Let the restarted ball be sent, receive it again, and do not
+        -- press the button at all.  The ball must reach the left endpoint,
+        -- enter WAIT_SCORE, and display loss_score = 2.
+        wait until gpio_line = '1' for 50 us;
+        assert gpio_line = '1'
+            report "Restarted game failed: no GPIO transmit pulse"
+            severity failure;
+        wait until gpio_line = 'Z' for 2 us;
+
+        tb_gpio_drive <= '0';
+        wait for 3 * CLK_PERIOD;
+        tb_gpio_drive <= '1';
+        wait for 2 * CLK_PERIOD;
+        tb_gpio_drive <= '0';
+
+        -- No i_btn pulse here: this deliberately tests a missed ball.
+        wait until o_led = "00000010" for 50 us;
+        assert o_led = "00000010"
+            report "Missed ball failed: loss score did not increment to 2"
+            severity failure;
+
+        assert false report "All ping_pong_game test cases passed" severity note;
+        finish;
+    end process;
+end architecture;
