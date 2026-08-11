@@ -32,10 +32,10 @@ architecture Behavioral of ping_pong_game is
     signal btn_rise     : std_logic := '0';
 begin
     io_gpio <= gpio_out;
-    gpio_in <= to_X01(io_gpio);
-    slow_clk <= clk_div(23);
+    gpio_in <= io_gpio;
+    slow_clk <= clk_div(2);
 
-   div: process (i_clk, i_rst)
+    process (i_clk, i_rst)
     begin
         if i_rst = '1' then
             clk_div <= (others => '0');
@@ -44,7 +44,7 @@ begin
         end if;
     end process;
 
-   io_gpio: process(i_clk)
+    process(i_clk)
     begin
         if rising_edge(i_clk) then
             if gpio_in = '1' and gpio_prev = '0' then
@@ -56,7 +56,7 @@ begin
         end if;
     end process;
 
-   btn: process(i_clk)
+    process(i_clk)
     begin
         if rising_edge(i_clk) then
             if i_btn = '1' and btn_prev = '0' then
@@ -68,7 +68,7 @@ begin
         end if;
     end process;
 
-   FSM: process(i_clk, i_rst)
+    process(i_clk, i_rst)
     begin
         if i_rst = '1' then
             state <= RECEIVE;
@@ -117,7 +117,7 @@ begin
         end if;
     end process;
 
-   ballmove: process(slow_clk, i_rst)
+    process(slow_clk, i_rst)
     begin
         if i_rst = '1' then
             move <= "0000000001";
@@ -146,7 +146,7 @@ begin
         end if;
     end process;
 
-   send: process(i_clk, i_rst)
+    process(i_clk, i_rst)
     begin
         if i_rst = '1' then
             pulse_counter <= "0000";
@@ -168,7 +168,7 @@ begin
         end if;
     end process;
 
-   gpio_out: process(i_clk, i_rst)
+    process(i_clk, i_rst)
     begin
         if rising_edge(i_clk) then
             if state = SEND then
@@ -179,7 +179,7 @@ begin
         end if;
     end process;
 
-   led: process(state, move, loss_score)
+    process(state, move, loss_score)
     begin
         case state is
             when WAIT_SCORE | WAIT_START =>
