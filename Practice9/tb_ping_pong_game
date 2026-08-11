@@ -11,10 +11,10 @@ library ieee;
 use ieee.std_logic_1164.all;
 use std.env.all;
 
-entity ping_pong_game_tb is
+entity tb_ping_pong_game is
 end entity;
 
-architecture sim of ping_pong_game_tb is
+architecture sim of tb_ping_pong_game is
     constant CLK_PERIOD : time := 10 ns;
 
     signal i_clk         : std_logic := '0';
