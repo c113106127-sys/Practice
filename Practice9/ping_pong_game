@@ -43,7 +43,7 @@ begin
             clk_div <= clk_div + 1;
         end if;
     end process;
-
+--gpio-rise
     process(i_clk)
     begin
         if rising_edge(i_clk) then
@@ -55,7 +55,7 @@ begin
             gpio_prev <= gpio_in;
         end if;
     end process;
-
+--btn-rise
     process(i_clk)
     begin
         if rising_edge(i_clk) then
@@ -67,7 +67,7 @@ begin
             btn_prev <= i_btn;
         end if;
     end process;
-
+--FSM
     process(i_clk, i_rst)
     begin
         if i_rst = '1' then
@@ -116,7 +116,7 @@ begin
             end case;
         end if;
     end process;
-
+--ballmove
     process(slow_clk, i_rst)
     begin
         if i_rst = '1' then
@@ -145,7 +145,7 @@ begin
             end case;
         end if;
     end process;
-
+--send
     process(i_clk, i_rst)
     begin
         if i_rst = '1' then
@@ -167,7 +167,7 @@ begin
             end case;
         end if;
     end process;
-
+--gpio-out
     process(i_clk, i_rst)
     begin
         if rising_edge(i_clk) then
@@ -178,7 +178,7 @@ begin
             end if;
         end if;
     end process;
-
+--LED
     process(state, move, loss_score)
     begin
         case state is
