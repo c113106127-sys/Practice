@@ -14,6 +14,7 @@ entity ping_pong_game is
 end entity;
 
 architecture Behavioral of ping_pong_game is
+    -- WAIT_START prevents the scoring/hitting press from restarting the game.
     type state_type is (RECEIVE, SEND, MOVE_R, MOVE_L, WAIT_SCORE, WAIT_START);
     signal state        : state_type := RECEIVE;
     signal move         : std_logic_vector(9 downto 0) := "0000000001";
@@ -32,8 +33,8 @@ architecture Behavioral of ping_pong_game is
 begin
     io_gpio <= gpio_out;
     gpio_in <= io_gpio;
-    slow_clk <= clk_div(2);
-
+    slow_clk <= clk_div(23);
+--div
     process (i_clk, i_rst)
     begin
         if i_rst = '1' then
